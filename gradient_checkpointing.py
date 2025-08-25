@@ -1,29 +1,32 @@
 """
-Basic gradient checkpointing implementation in PyTorch.
+Gradient checkpointing implementation for 3D medical imaging with PyTorch.
 
-This module demonstrates how to selectively not store activations during forward pass
-and recompute them during backward pass to save memory.
+This module demonstrates memory-efficient training for 3D MRI segmentation and
+classification models by selectively storing activations during forward pass
+and recomputing them during backward pass.
 """
 
 import torch
 import torch.nn as nn
 from typing import Callable, Any, Tuple, List
+import numpy as np
 import weakref
 
 
 class CheckpointFunction(torch.autograd.Function):
-    """Custom autograd function for gradient checkpointing."""
+    """Custom autograd function for gradient checkpointing in medical imaging models."""
     
     @staticmethod
     def forward(ctx, run_function, preserve_rng_state, *args):
         """
         Forward pass: run the function but don't save intermediate activations.
+        Critical for 3D medical imaging where activation tensors can be very large.
         
         Args:
             ctx: Context object for storing information for backward pass
-            run_function: The function to checkpoint
+            run_function: The function to checkpoint (e.g., 3D convolution blocks)
             preserve_rng_state: Whether to preserve RNG state for deterministic recomputation
-            *args: Arguments to pass to run_function
+            *args: Arguments to pass to run_function (typically 3D volume tensors)
         """
         ctx.run_function = run_function
         ctx.preserve_rng_state = preserve_rng_state
@@ -41,7 +44,7 @@ class CheckpointFunction(torch.autograd.Function):
             else:
                 ctx.inputs.append(arg)
         
-        # Save RNG state if needed
+        # Save RNG state if needed (important for dropout in medical models)
         if preserve_rng_state:
             ctx.cpu_rng_state = torch.get_rng_state()
             if torch.cuda.is_available():
@@ -59,7 +62,7 @@ class CheckpointFunction(torch.autograd.Function):
     def backward(ctx, *grad_outputs):
         """
         Backward pass: recompute forward pass to get intermediate activations,
-        then compute gradients.
+        then compute gradients. Essential for fitting large 3D volumes in GPU memory.
         """
         # Retrieve saved tensors
         tensor_inputs = ctx.saved_tensors
@@ -120,11 +123,14 @@ class CheckpointFunction(torch.autograd.Function):
 
 def checkpoint(function: Callable[..., Any], *args, preserve_rng_state: bool = True) -> Any:
     """
-    Checkpoint a function to save memory during training.
+    Checkpoint a function to save memory during 3D medical image processing.
+    
+    Particularly useful for 3D U-Net, V-Net, and other volumetric architectures
+    where intermediate feature maps can consume significant GPU memory.
     
     Args:
-        function: The function to checkpoint
-        *args: Arguments to pass to the function
+        function: The function to checkpoint (e.g., encoder/decoder blocks)
+        *args: Arguments to pass to the function (3D volume tensors)
         preserve_rng_state: Whether to preserve RNG state for deterministic behavior
     
     Returns:
@@ -133,23 +139,27 @@ def checkpoint(function: Callable[..., Any], *args, preserve_rng_state: bool = T
     return CheckpointFunction.apply(function, preserve_rng_state, *args)
 
 
-class CheckpointedSequential(nn.Module):
-    """Sequential container with gradient checkpointing support."""
+class CheckpointedMedicalSequential(nn.Module):
+    """
+    Sequential container with gradient checkpointing for 3D medical imaging models.
+    Optimized for architectures like 3D U-Net, V-Net, and nnU-Net.
+    """
     
     def __init__(self, *modules, checkpoint_segments: int = 1):
         """
-        Initialize checkpointed sequential container.
+        Initialize checkpointed sequential container for medical imaging.
         
         Args:
-            *modules: Modules to run sequentially
-            checkpoint_segments: Number of segments to checkpoint (1 = full checkpointing)
+            *modules: Modules to run sequentially (e.g., 3D conv blocks)
+            checkpoint_segments: Number of segments to checkpoint 
+                                (1 = full checkpointing, best for large 3D volumes)
         """
         super().__init__()
         self.modules_list = nn.ModuleList(modules)
         self.checkpoint_segments = checkpoint_segments
     
     def forward(self, x):
-        """Forward pass with checkpointing."""
+        """Forward pass with checkpointing for 3D medical volumes."""
         if not self.training or self.checkpoint_segments == 0:
             # No checkpointing during evaluation or if disabled
             for module in self.modules_list:
@@ -177,20 +187,22 @@ class CheckpointedSequential(nn.Module):
         return x
 
 
-class SelectiveCheckpoint:
+class SelectiveCheckpointMedical:
     """
-    Selective checkpointing with configurable checkpoint locations.
+    Selective checkpointing for 3D medical imaging models.
     
-    This allows fine-grained control over which layers to checkpoint.
+    Allows fine-grained control over which layers to checkpoint,
+    essential for balancing memory usage and computation in 3D CNNs.
     """
     
     def __init__(self, model: nn.Module, checkpoint_layers: List[int] = None):
         """
-        Initialize selective checkpointing.
+        Initialize selective checkpointing for medical imaging models.
         
         Args:
-            model: The model to apply checkpointing to
+            model: The 3D medical imaging model (U-Net, V-Net, etc.)
             checkpoint_layers: List of layer indices to checkpoint
+                             (typically deeper layers with larger feature maps)
         """
         self.model = model
         self.checkpoint_layers = checkpoint_layers or []
@@ -233,50 +245,128 @@ class SelectiveCheckpoint:
                 layers[idx].forward = original_forward
 
 
-def memory_efficient_gradient_accumulation(
+def memory_efficient_medical_training(
     model: nn.Module,
     data_loader,
     loss_fn: Callable,
     optimizer: torch.optim.Optimizer,
     accumulation_steps: int = 1,
-    checkpoint_segments: int = 0
+    checkpoint_segments: int = 0,
+    mixed_precision: bool = True
 ):
     """
-    Training loop with gradient accumulation and optional checkpointing.
+    Memory-efficient training loop for 3D medical imaging models.
+    
+    Designed for training on large 3D MRI/CT volumes with limited GPU memory.
+    Combines gradient accumulation, checkpointing, and mixed precision.
     
     Args:
-        model: The model to train
-        data_loader: DataLoader for training data
-        loss_fn: Loss function
-        optimizer: Optimizer
-        accumulation_steps: Number of batches to accumulate gradients over
+        model: 3D medical imaging model (U-Net, V-Net, etc.)
+        data_loader: DataLoader for 3D medical volumes
+        loss_fn: Loss function (Dice, Cross-Entropy, etc.)
+        optimizer: Optimizer (Adam, SGD, etc.)
+        accumulation_steps: Number of batches to accumulate gradients
         checkpoint_segments: Number of segments to checkpoint (0 = no checkpointing)
+        mixed_precision: Whether to use automatic mixed precision (AMP)
     """
     model.train()
     
-    for batch_idx, (inputs, targets) in enumerate(data_loader):
-        # Forward pass with optional checkpointing
-        if checkpoint_segments > 0:
-            # Wrap model forward with checkpointing
-            outputs = checkpoint(model, inputs)
-        else:
-            outputs = model(inputs)
+    # Setup mixed precision if requested
+    scaler = torch.cuda.amp.GradScaler() if mixed_precision else None
+    
+    for batch_idx, (volumes, targets) in enumerate(data_loader):
+        # volumes shape: [B, C, D, H, W] for 3D medical images
         
-        # Compute loss
-        loss = loss_fn(outputs, targets)
-        
-        # Scale loss by accumulation steps
-        loss = loss / accumulation_steps
+        with torch.cuda.amp.autocast(enabled=mixed_precision):
+            # Forward pass with optional checkpointing
+            if checkpoint_segments > 0:
+                # Wrap model forward with checkpointing
+                outputs = checkpoint(model, volumes)
+            else:
+                outputs = model(volumes)
+            
+            # Compute loss (e.g., Dice loss for segmentation)
+            loss = loss_fn(outputs, targets)
+            
+            # Scale loss by accumulation steps
+            loss = loss / accumulation_steps
         
         # Backward pass
-        loss.backward()
+        if mixed_precision:
+            scaler.scale(loss).backward()
+        else:
+            loss.backward()
         
         # Update weights every accumulation_steps
         if (batch_idx + 1) % accumulation_steps == 0:
-            optimizer.step()
+            if mixed_precision:
+                scaler.step(optimizer)
+                scaler.update()
+            else:
+                optimizer.step()
             optimizer.zero_grad()
     
     # Final update if needed
     if (batch_idx + 1) % accumulation_steps != 0:
-        optimizer.step()
+        if mixed_precision:
+            scaler.step(optimizer)
+            scaler.update()
+        else:
+            optimizer.step()
         optimizer.zero_grad()
+
+
+class VolumetricCheckpointStrategy:
+    """
+    Advanced checkpointing strategy for 3D volumetric medical data.
+    Optimizes memory usage based on volume dimensions and model architecture.
+    """
+    
+    def __init__(self, volume_size: Tuple[int, int, int], model_depth: int):
+        """
+        Initialize volumetric checkpointing strategy.
+        
+        Args:
+            volume_size: (D, H, W) dimensions of input 3D volume
+            model_depth: Number of layers in the model
+        """
+        self.volume_size = volume_size
+        self.model_depth = model_depth
+        self.memory_per_voxel = 4  # bytes for float32
+        
+    def calculate_memory_usage(self, batch_size: int, channels: int) -> float:
+        """
+        Calculate approximate memory usage for 3D volumes.
+        
+        Returns:
+            Memory usage in GB
+        """
+        voxels = batch_size * channels * np.prod(self.volume_size)
+        return (voxels * self.memory_per_voxel) / (1024**3)
+    
+    def recommend_checkpoint_layers(self, available_memory_gb: float) -> List[int]:
+        """
+        Recommend which layers to checkpoint based on available GPU memory.
+        
+        Args:
+            available_memory_gb: Available GPU memory in GB
+            
+        Returns:
+            List of layer indices to checkpoint
+        """
+        # Simple heuristic: checkpoint deeper layers which typically have more channels
+        checkpoint_layers = []
+        
+        # Checkpoint every nth layer based on memory constraints
+        if available_memory_gb < 8:
+            # Aggressive checkpointing for low memory
+            checkpoint_interval = 2
+        elif available_memory_gb < 16:
+            # Moderate checkpointing
+            checkpoint_interval = 3
+        else:
+            # Light checkpointing for high memory
+            checkpoint_interval = 4
+            
+        checkpoint_layers = list(range(0, self.model_depth, checkpoint_interval))
+        return checkpoint_layers

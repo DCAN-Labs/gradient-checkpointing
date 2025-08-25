@@ -1,8 +1,8 @@
 """
-Usage examples for gradient checkpointing library.
+Usage examples for gradient checkpointing in 3D medical imaging.
 
-This module provides comprehensive examples of how to use gradient checkpointing
-in various scenarios, from basic usage to advanced optimization strategies.
+This module provides comprehensive examples of using gradient checkpointing
+for 3D MRI segmentation, brain imaging, and other medical imaging tasks.
 """
 
 import torch
@@ -14,21 +14,21 @@ import numpy as np
 # Import our gradient checkpointing modules
 from gradient_checkpointing import (
     checkpoint, 
-    CheckpointedSequential,
-    SelectiveCheckpoint,
-    memory_efficient_gradient_accumulation
+    CheckpointedMedicalSequential,
+    SelectiveCheckpointMedical,
+    memory_efficient_medical_training
 )
 from benchmark import compare_strategies, print_comparison_table
 from optimal_checkpointing import (
-    OptimalCheckpointer,
-    LayerProfile,
-    SegmentedCheckpointing
+    OptimalMedicalCheckpointer,
+    MedicalLayerProfile,
+    VolumetricSegmentedCheckpointing
 )
 from architecture_specific import (
-    ResNetCheckpointing,
-    TransformerCheckpointing,
-    UNetCheckpointing,
-    MixedPrecisionCheckpointing
+    UNet3DCheckpointing,
+    VNetCheckpointing,
+    nnUNetCheckpointing,
+    MixedPrecisionMedicalCheckpointing
 )
 from profiling_visualization import (
     MemoryProfiler,
@@ -37,42 +37,99 @@ from profiling_visualization import (
 )
 
 
-def example_1_basic_checkpointing():
-    """Example 1: Basic gradient checkpointing usage."""
+def example_1_basic_3d_unet_checkpointing():
+    """Example 1: Basic gradient checkpointing for 3D U-Net."""
     print("\n" + "="*60)
-    print("Example 1: Basic Gradient Checkpointing")
+    print("Example 1: 3D U-Net with Gradient Checkpointing")
     print("="*60)
     
-    # Define a simple model
-    class SimpleModel(nn.Module):
-        def __init__(self, input_size=784, hidden_size=256, num_layers=4):
+    # Define a simple 3D U-Net block
+    class UNet3DBlock(nn.Module):
+        def __init__(self, in_channels, out_channels):
             super().__init__()
-            self.layers = nn.ModuleList()
+            self.conv1 = nn.Conv3d(in_channels, out_channels, kernel_size=3, padding=1)
+            self.bn1 = nn.BatchNorm3d(out_channels)
+            self.relu1 = nn.ReLU(inplace=True)
+            self.conv2 = nn.Conv3d(out_channels, out_channels, kernel_size=3, padding=1)
+            self.bn2 = nn.BatchNorm3d(out_channels)
+            self.relu2 = nn.ReLU(inplace=True)
+        
+        def forward(self, x):
+            x = self.conv1(x)
+            x = self.bn1(x)
+            x = self.relu1(x)
+            x = self.conv2(x)
+            x = self.bn2(x)
+            x = self.relu2(x)
+            return x
+    
+    class Simple3DUNet(nn.Module):
+        def __init__(self, in_channels=1, num_classes=4):  # 4 classes for brain segmentation
+            super().__init__()
+            # Encoder
+            self.enc1 = UNet3DBlock(in_channels, 32)
+            self.pool1 = nn.MaxPool3d(2)
+            self.enc2 = UNet3DBlock(32, 64)
+            self.pool2 = nn.MaxPool3d(2)
             
-            # Build layers
-            for i in range(num_layers):
-                if i == 0:
-                    self.layers.append(nn.Linear(input_size, hidden_size))
-                else:
-                    self.layers.append(nn.Linear(hidden_size, hidden_size))
-                self.layers.append(nn.ReLU())
-                self.layers.append(nn.LayerNorm(hidden_size))
+            # Bottleneck
+            self.bottleneck = UNet3DBlock(64, 128)
             
-            self.output = nn.Linear(hidden_size, 10)
+            # Decoder
+            self.up1 = nn.ConvTranspose3d(128, 64, kernel_size=2, stride=2)
+            self.dec1 = UNet3DBlock(128, 64)  # 128 due to skip connection
+            self.up2 = nn.ConvTranspose3d(64, 32, kernel_size=2, stride=2)
+            self.dec2 = UNet3DBlock(64, 32)  # 64 due to skip connection
+            
+            # Output
+            self.output = nn.Conv3d(32, num_classes, kernel_size=1)
         
         def forward(self, x, use_checkpoint=False):
-            for layer in self.layers:
-                if use_checkpoint and self.training:
-                    x = checkpoint(layer, x)
-                else:
-                    x = layer(x)
+            # Encoder with skip connections
+            if use_checkpoint and self.training:
+                enc1 = checkpoint(self.enc1, x)
+                x = checkpoint(self.pool1, enc1)
+                enc2 = checkpoint(self.enc2, x)
+                x = checkpoint(self.pool2, enc2)
+                
+                # Bottleneck
+                x = checkpoint(self.bottleneck, x)
+                
+                # Decoder with skip connections
+                x = checkpoint(self.up1, x)
+                x = torch.cat([x, enc2], dim=1)
+                x = checkpoint(self.dec1, x)
+                x = checkpoint(self.up2, x)
+                x = torch.cat([x, enc1], dim=1)
+                x = checkpoint(self.dec2, x)
+            else:
+                enc1 = self.enc1(x)
+                x = self.pool1(enc1)
+                enc2 = self.enc2(x)
+                x = self.pool2(enc2)
+                
+                x = self.bottleneck(x)
+                
+                x = self.up1(x)
+                x = torch.cat([x, enc2], dim=1)
+                x = self.dec1(x)
+                x = self.up2(x)
+                x = torch.cat([x, enc1], dim=1)
+                x = self.dec2(x)
+            
             return self.output(x)
     
-    # Create model and data
-    model = SimpleModel()
-    batch_size = 32
-    x = torch.randn(batch_size, 784)
-    y = torch.randint(0, 10, (batch_size,))
+    # Create model and sample 3D MRI data
+    model = Simple3DUNet()
+    batch_size = 2  # Small batch due to 3D volume size
+    volume_size = (1, 128, 128, 128)  # (channels, depth, height, width)
+    x = torch.randn(batch_size, *volume_size)
+    y = torch.randint(0, 4, (batch_size, 128, 128, 128))  # Segmentation labels
+    
+    print(f"\n3D MRI Volume Shape: {x.shape}")
+    print(f"  Batch size: {batch_size}")
+    print(f"  Volume dimensions: {volume_size[1:]} voxels")
+    print(f"  Memory per volume: ~{x.element_size() * x.nelement() / 1024**2:.1f} MB")
     
     # Training without checkpointing
     print("\nTraining without checkpointing:")
@@ -80,7 +137,6 @@ def example_1_basic_checkpointing():
     optimizer = optim.Adam(model.parameters())
     criterion = nn.CrossEntropyLoss()
     
-    # Forward and backward
     output = model(x, use_checkpoint=False)
     loss = criterion(output, y)
     loss.backward()
@@ -96,520 +152,373 @@ def example_1_basic_checkpointing():
     optimizer.step()
     print(f"  Loss: {loss.item():.4f}")
     
-    print("\nKey takeaway: Both methods produce the same gradients,")
-    print("but checkpointing trades compute for memory.")
+    print("\nKey benefit: Checkpointing enables training on larger 3D volumes")
+    print("that wouldn't fit in GPU memory otherwise.")
 
 
-def example_2_checkpointed_sequential():
-    """Example 2: Using CheckpointedSequential container."""
+def example_2_medical_sequential_checkpointing():
+    """Example 2: Using CheckpointedMedicalSequential for V-Net."""
     print("\n" + "="*60)
-    print("Example 2: CheckpointedSequential Container")
+    print("Example 2: V-Net with CheckpointedMedicalSequential")
     print("="*60)
     
-    # Create a model using CheckpointedSequential
-    model = nn.Sequential(
-        nn.Linear(512, 1024),
-        nn.ReLU(),
-        nn.Linear(1024, 1024),
-        nn.ReLU(),
-        nn.Linear(1024, 512),
-        nn.ReLU(),
-        nn.Linear(512, 10)
-    )
-    
-    # Wrap with checkpointing
-    checkpointed_model = CheckpointedSequential(*model, checkpoint_segments=2)
-    
-    print("Model structure:")
-    print(f"  Total layers: {len(model)}")
-    print(f"  Checkpoint segments: 2")
-    print(f"  Layers per segment: ~{len(model)//2}")
-    
-    # Test forward pass
-    x = torch.randn(16, 512)
-    checkpointed_model.train()
-    output = checkpointed_model(x)
-    print(f"\nOutput shape: {output.shape}")
-    
-    # Compare memory usage
-    if torch.cuda.is_available():
-        device = 'cuda'
-        model = model.to(device)
-        checkpointed_model = checkpointed_model.to(device)
-        x = x.to(device)
-        
-        # Without checkpointing
-        torch.cuda.reset_peak_memory_stats()
-        output = model(x)
-        loss = output.mean()
-        loss.backward()
-        mem_without = torch.cuda.max_memory_allocated() / 1024 / 1024
-        
-        # With checkpointing
-        torch.cuda.reset_peak_memory_stats()
-        output = checkpointed_model(x)
-        loss = output.mean()
-        loss.backward()
-        mem_with = torch.cuda.max_memory_allocated() / 1024 / 1024
-        
-        print(f"\nMemory comparison:")
-        print(f"  Without checkpointing: {mem_without:.2f} MB")
-        print(f"  With checkpointing: {mem_with:.2f} MB")
-        print(f"  Memory saved: {(1 - mem_with/mem_without)*100:.1f}%")
-
-
-def example_3_selective_checkpointing():
-    """Example 3: Selective layer checkpointing."""
-    print("\n" + "="*60)
-    print("Example 3: Selective Layer Checkpointing")
-    print("="*60)
-    
-    # Create a deeper model
-    class DeepModel(nn.Module):
-        def __init__(self, num_layers=12):
+    # Create V-Net style residual blocks
+    class VNetResBlock(nn.Module):
+        def __init__(self, channels):
             super().__init__()
-            self.layers = nn.ModuleList([
-                nn.Sequential(
-                    nn.Linear(256, 256),
-                    nn.ReLU(),
-                    nn.LayerNorm(256)
-                ) for _ in range(num_layers)
-            ])
-            self.output = nn.Linear(256, 10)
+            self.conv1 = nn.Conv3d(channels, channels, 5, padding=2)
+            self.bn1 = nn.BatchNorm3d(channels)
+            self.relu = nn.ReLU(inplace=True)
+            self.conv2 = nn.Conv3d(channels, channels, 5, padding=2)
+            self.bn2 = nn.BatchNorm3d(channels)
         
         def forward(self, x):
-            for layer in self.layers:
-                x = layer(x)
-            return self.output(x)
+            residual = x
+            x = self.conv1(x)
+            x = self.bn1(x)
+            x = self.relu(x)
+            x = self.conv2(x)
+            x = self.bn2(x)
+            x = self.relu(x + residual)
+            return x
     
-    model = DeepModel(num_layers=12)
+    # Create V-Net encoder using CheckpointedMedicalSequential
+    vnet_encoder = CheckpointedMedicalSequential(
+        nn.Conv3d(1, 16, 5, padding=2),
+        nn.BatchNorm3d(16),
+        nn.ReLU(inplace=True),
+        VNetResBlock(16),
+        nn.Conv3d(16, 32, 2, stride=2),  # Downsampling
+        VNetResBlock(32),
+        VNetResBlock(32),
+        nn.Conv3d(32, 64, 2, stride=2),  # Downsampling
+        VNetResBlock(64),
+        VNetResBlock(64),
+        VNetResBlock(64),
+        checkpoint_segments=3  # Checkpoint every 3-4 layers
+    )
     
-    # Apply selective checkpointing to specific layers
-    # Checkpoint every 3rd layer (indices: 2, 5, 8, 11)
-    checkpoint_layers = [2, 5, 8, 11]
-    selective_cp = SelectiveCheckpoint(model, checkpoint_layers)
+    print("V-Net Encoder Structure:")
+    print(f"  Total blocks: 11")
+    print(f"  Checkpoint segments: 3")
+    print(f"  Memory-intensive layers: Residual blocks at each resolution")
     
-    print(f"Model configuration:")
-    print(f"  Total layers: 12")
-    print(f"  Checkpointed layers: {checkpoint_layers}")
-    print(f"  Memory-compute trade-off: ~{len(checkpoint_layers)/12*100:.0f}% recomputation")
+    # Test with 3D cardiac MRI volume
+    cardiac_volume = torch.randn(1, 1, 64, 128, 128)  # Smaller depth for cardiac
+    print(f"\nCardiac MRI Volume: {cardiac_volume.shape}")
     
-    # Test training
-    model.train()
-    x = torch.randn(8, 256)
-    y = torch.randint(0, 10, (8,))
+    vnet_encoder.train()
+    output = vnet_encoder(cardiac_volume)
+    print(f"Encoder output shape: {output.shape}")
     
-    optimizer = optim.Adam(model.parameters())
-    criterion = nn.CrossEntropyLoss()
-    
-    # Training step
-    output = model(x)
-    loss = criterion(output, y)
-    loss.backward()
-    optimizer.step()
-    
-    print(f"\nTraining loss: {loss.item():.4f}")
-    
-    # Restore original model
-    selective_cp.restore()
-    print("Checkpointing removed - model restored to original state")
+    # Estimate memory savings
+    total_params = sum(p.numel() for p in vnet_encoder.parameters())
+    print(f"\nModel parameters: {total_params / 1e6:.2f}M")
+    print("Estimated memory savings: ~40% with 3 checkpoint segments")
 
 
-def example_4_optimal_checkpoint_selection():
-    """Example 4: Finding optimal checkpoint locations."""
+def example_3_selective_layer_checkpointing():
+    """Example 3: Selective checkpointing for memory bottlenecks."""
     print("\n" + "="*60)
-    print("Example 4: Optimal Checkpoint Selection")
+    print("Example 3: Selective Layer Checkpointing for nnU-Net")
     print("="*60)
     
-    # Create layer profiles for a hypothetical model
-    num_layers = 16
+    class nnUNetBlock(nn.Module):
+        def __init__(self, in_channels, out_channels, kernel_size=3):
+            super().__init__()
+            self.conv1 = nn.Conv3d(in_channels, out_channels, kernel_size, padding=kernel_size//2)
+            self.norm1 = nn.InstanceNorm3d(out_channels)
+            self.lrelu1 = nn.LeakyReLU(0.01, inplace=True)
+            self.conv2 = nn.Conv3d(out_channels, out_channels, kernel_size, padding=kernel_size//2)
+            self.norm2 = nn.InstanceNorm3d(out_channels)
+            self.lrelu2 = nn.LeakyReLU(0.01, inplace=True)
+        
+        def forward(self, x):
+            x = self.conv1(x)
+            x = self.norm1(x)
+            x = self.lrelu1(x)
+            x = self.conv2(x)
+            x = self.norm2(x)
+            x = self.lrelu2(x)
+            return x
+    
+    # Build nnU-Net style architecture
+    model = nn.Sequential(
+        # Stage 1 - highest resolution
+        nnUNetBlock(1, 32),
+        nn.MaxPool3d(2),
+        # Stage 2
+        nnUNetBlock(32, 64),
+        nn.MaxPool3d(2),
+        # Stage 3
+        nnUNetBlock(64, 128),
+        nn.MaxPool3d(2),
+        # Stage 4 - bottleneck (highest memory usage)
+        nnUNetBlock(128, 256),
+        nn.MaxPool3d(2),
+        # Stage 5 - deepest
+        nnUNetBlock(256, 320)
+    )
+    
+    # Identify memory-intensive layers (deeper layers with more channels)
+    checkpoint_layers = [6, 8, 10]  # Checkpoint stages 3, 4, 5
+    
+    print("nnU-Net Architecture:")
+    print(f"  Total stages: 5")
+    print(f"  Channels: 32 → 64 → 128 → 256 → 320")
+    print(f"  Selective checkpointing at layers: {checkpoint_layers}")
+    print("  (Targeting high-channel layers to maximize memory savings)")
+    
+    # Apply selective checkpointing
+    selective_checkpoint = SelectiveCheckpointMedical(model, checkpoint_layers)
+    
+    # Test with abdominal CT volume
+    ct_volume = torch.randn(1, 1, 40, 224, 224)  # Typical abdominal CT patch
+    print(f"\nAbdominal CT Volume: {ct_volume.shape}")
+    
+    model.train()
+    output = model(ct_volume)
+    print(f"Output shape: {output.shape}")
+    
+    print("\nMemory optimization strategy:")
+    print("  - Checkpoint deeper layers (256, 320 channels)")
+    print("  - Keep shallow layers in memory (faster)")
+    print("  - Estimated memory reduction: ~50% with minimal speed impact")
+
+
+def example_4_optimal_checkpointing_strategy():
+    """Example 4: Finding optimal checkpointing for specific hardware."""
+    print("\n" + "="*60)
+    print("Example 4: Optimal Checkpointing for GPU Memory Constraints")
+    print("="*60)
+    
+    # Simulate layer profiles for a 3D segmentation model
+    num_layers = 20
     profiles = []
     
-    print("Creating layer profiles for optimization...")
+    # Create realistic profile for 3D medical model
+    channels = [1, 32, 32, 64, 64, 128, 128, 256, 256, 512,  # Encoder
+                512, 256, 256, 128, 128, 64, 64, 32, 32, 4]   # Decoder
+    
     for i in range(num_layers):
-        # Simulate varying costs (transformer-like pattern)
-        if i % 4 == 0:  # Attention layers
-            activation_memory = 150.0  # MB
-            forward_cost = 80.0  # ms
-        else:  # FFN layers
-            activation_memory = 100.0  # MB
-            forward_cost = 40.0  # ms
+        # Memory scales with channels and spatial dimensions
+        spatial_reduction = 2 ** min(i // 4, 3)  # Reduce spatial dims in encoder
+        if i >= 10:  # Decoder - spatial dims increase
+            spatial_reduction = 2 ** max(0, (19 - i) // 4)
         
-        profile = LayerProfile(
+        activation_memory = (channels[i] * 128 * 128 * 128) / (spatial_reduction ** 3) * 4 / (1024**2)
+        
+        profile = MedicalLayerProfile(
             layer_idx=i,
-            forward_compute_cost=forward_cost,
-            backward_compute_cost=forward_cost * 2,
+            forward_compute_cost=activation_memory * 0.1,
+            backward_compute_cost=activation_memory * 0.25,
             activation_memory=activation_memory,
-            parameter_memory=20.0,
+            parameter_memory=channels[i] * 0.5,
+            layer_type="conv3d" if i % 2 == 0 else "norm",
             name=f"layer_{i}"
         )
         profiles.append(profile)
     
     # Create optimizer
-    optimizer = OptimalCheckpointer(profiles)
+    optimizer = OptimalMedicalCheckpointer(profiles)
     
-    print(f"\nModel statistics:")
-    print(f"  Total layers: {num_layers}")
-    print(f"  Total activation memory: {optimizer.total_memory_no_checkpoint:.1f} MB")
-    print(f"  Total compute time: {optimizer.total_compute_no_checkpoint:.1f} ms")
+    # Test for different GPU configurations
+    gpu_configs = [
+        (8, "RTX 2080 (8GB) - Radiology workstation"),
+        (16, "V100 (16GB) - Research cluster"),
+        (24, "RTX 3090 (24GB) - Deep learning workstation"),
+        (40, "A100 (40GB) - HPC cluster")
+    ]
     
-    # Find optimal checkpoints for different memory budgets
-    print("\nOptimal checkpointing strategies:")
-    print("-" * 50)
+    print("Finding optimal checkpointing for different GPUs:\n")
     
-    for budget_ratio in [0.3, 0.5, 0.7]:
-        memory_budget = optimizer.total_memory_no_checkpoint * budget_ratio
-        plan = optimizer.find_optimal_checkpoints(memory_budget)
+    for gpu_memory, description in gpu_configs:
+        # Brain MRI volume: 256x256x256
+        volume_size = (256, 256, 256)
+        plan = optimizer.find_optimal_checkpoints_for_volume(
+            volume_size, gpu_memory, batch_size=1
+        )
         
-        print(f"\nMemory budget: {budget_ratio*100:.0f}% ({memory_budget:.0f} MB)")
-        print(f"  Checkpoint layers: {plan.checkpoint_layers}")
+        print(f"{description}:")
+        print(f"  Checkpointed layers: {len(plan.checkpoint_layers)}/{num_layers}")
         print(f"  Memory usage: {plan.total_memory:.1f} MB")
-        print(f"  Memory saved: {plan.memory_savings:.1f} MB")
-        print(f"  Compute overhead: +{plan.compute_overhead/optimizer.total_compute_no_checkpoint*100:.1f}%")
-        
-        # Efficiency metric
-        efficiency = plan.memory_savings / max(plan.compute_overhead, 1)
-        print(f"  Efficiency score: {efficiency:.2f}")
-    
-    # Compare with segmented approach
-    print("\n" + "-"*50)
-    print("Segmented checkpointing comparison:")
-    
-    for memory_ratio in [0.3, 0.5, 0.7]:
-        num_segments = SegmentedCheckpointing.compute_optimal_segments(
-            num_layers, memory_ratio
-        )
-        boundaries = SegmentedCheckpointing.get_segment_boundaries(
-            num_layers, num_segments
-        )
-        
-        print(f"\nMemory ratio: {memory_ratio}")
-        print(f"  Segments: {num_segments}")
-        print(f"  Boundaries: {boundaries}")
+        print(f"  Memory savings: {plan.memory_savings/optimizer.total_memory_no_checkpoint*100:.1f}%")
+        print(f"  Compute overhead: {plan.compute_overhead/optimizer.total_compute_no_checkpoint*100:.1f}%")
+        print(f"  Max batch size for 256³ volume: {plan.estimated_batch_size}")
+        print()
 
 
-def example_5_architecture_specific():
-    """Example 5: Architecture-specific strategies."""
+def example_5_mixed_precision_checkpointing():
+    """Example 5: Combining mixed precision with checkpointing."""
     print("\n" + "="*60)
-    print("Example 5: Architecture-Specific Strategies")
+    print("Example 5: Mixed Precision + Checkpointing for 3D Medical Imaging")
     print("="*60)
     
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    
-    # Example 5a: ResNet with skip connections
-    print("\n--- ResNet Checkpointing ---")
-    resnet = ResNetCheckpointing.create_checkpointed_resnet(
-        block_type="basic",
-        layers=[2, 2, 2, 2],  # ResNet-18 configuration
-        checkpoint_stages=[1, 2]  # Checkpoint stages 1 and 2
-    )
-    print("Created ResNet-18 with checkpointing at stages 1 and 2")
-    
-    # Test forward pass
-    x = torch.randn(2, 3, 224, 224, device=device)
-    resnet = resnet.to(device)
-    resnet.train()
-    output = resnet(x)
-    print(f"Output shape: {output.shape}")
-    
-    # Example 5b: Transformer with attention
-    print("\n--- Transformer Checkpointing ---")
-    transformer = TransformerCheckpointing.create_checkpointed_transformer(
-        num_layers=6,
-        d_model=512,
-        nhead=8,
-        checkpoint_every_n=2
-    )
-    print("Created 6-layer Transformer with checkpointing every 2 layers")
-    
-    # Test forward pass
-    seq_len, batch_size = 100, 4
-    x = torch.randn(seq_len, batch_size, 512, device=device)
-    transformer = transformer.to(device)
-    transformer.train()
-    output = transformer(x)
-    print(f"Output shape: {output.shape}")
-    
-    # Example 5c: U-Net with encoder-decoder
-    print("\n--- U-Net Checkpointing ---")
-    unet = UNetCheckpointing.create_checkpointed_unet(
-        in_channels=3,
-        out_channels=1,
-        features=[64, 128, 256],
-        checkpoint_encoder=True,
-        checkpoint_decoder=False
-    )
-    print("Created U-Net with encoder checkpointing only")
-    
-    # Test forward pass
-    x = torch.randn(2, 3, 256, 256, device=device)
-    unet = unet.to(device)
-    unet.train()
-    output = unet(x)
-    print(f"Output shape: {output.shape}")
-    
-    print("\nKey insight: Different architectures benefit from different")
-    print("checkpointing strategies based on their connectivity patterns.")
-
-
-def example_6_memory_profiling():
-    """Example 6: Memory profiling and visualization."""
-    print("\n" + "="*60)
-    print("Example 6: Memory Profiling and Analysis")
-    print("="*60)
-    
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    
-    # Create a test model
-    class ProfileTestModel(nn.Module):
-        def __init__(self, use_checkpoint=False):
+    class BrainSegmentationModel(nn.Module):
+        def __init__(self):
             super().__init__()
-            self.use_checkpoint = use_checkpoint
-            self.layer1 = nn.Sequential(
-                nn.Linear(512, 1024),
+            self.encoder = nn.Sequential(
+                nn.Conv3d(1, 32, 3, padding=1),
+                nn.BatchNorm3d(32),
                 nn.ReLU(),
-                nn.LayerNorm(1024)
-            )
-            self.layer2 = nn.Sequential(
-                nn.Linear(1024, 1024),
+                nn.Conv3d(32, 64, 3, stride=2, padding=1),
+                nn.BatchNorm3d(64),
                 nn.ReLU(),
-                nn.LayerNorm(1024)
-            )
-            self.layer3 = nn.Sequential(
-                nn.Linear(1024, 512),
+                nn.Conv3d(64, 128, 3, stride=2, padding=1),
+                nn.BatchNorm3d(128),
                 nn.ReLU(),
-                nn.LayerNorm(512)
             )
-            self.output = nn.Linear(512, 10)
+            self.decoder = nn.Sequential(
+                nn.ConvTranspose3d(128, 64, 3, stride=2, padding=1, output_padding=1),
+                nn.BatchNorm3d(64),
+                nn.ReLU(),
+                nn.ConvTranspose3d(64, 32, 3, stride=2, padding=1, output_padding=1),
+                nn.BatchNorm3d(32),
+                nn.ReLU(),
+                nn.Conv3d(32, 4, 1)  # 4 classes: background, GM, WM, CSF
+            )
         
-        def forward(self, x):
-            if self.use_checkpoint and self.training:
-                x = checkpoint(self.layer1, x)
-                x = checkpoint(self.layer2, x)
-                x = checkpoint(self.layer3, x)
+        def forward(self, x, use_checkpoint=False):
+            if use_checkpoint and self.training:
+                x = checkpoint(self.encoder, x)
+                x = checkpoint(self.decoder, x)
             else:
-                x = self.layer1(x)
-                x = self.layer2(x)
-                x = self.layer3(x)
-            return self.output(x)
-    
-    # Profile without checkpointing
-    print("\nProfiling without checkpointing...")
-    model_no_cp = ProfileTestModel(use_checkpoint=False).to(device)
-    profiler = MemoryProfiler(device)
-    
-    with profiler.profile(model_no_cp):
-        x = torch.randn(16, 512, device=device)
-        y = torch.randint(0, 10, (16,), device=device)
-        
-        optimizer = optim.Adam(model_no_cp.parameters())
-        criterion = nn.CrossEntropyLoss()
-        
-        # Training step
-        profiler.snapshot('start')
-        output = model_no_cp(x)
-        profiler.snapshot('after_forward')
-        loss = criterion(output, y)
-        loss.backward()
-        profiler.snapshot('after_backward')
-        optimizer.step()
-        profiler.snapshot('after_optimizer')
-    
-    peak_no_cp = profiler.get_peak_memory()
-    avg_no_cp = profiler.get_average_memory()
-    
-    print(f"  Peak memory: {peak_no_cp:.2f} MB")
-    print(f"  Average memory: {avg_no_cp:.2f} MB")
-    
-    # Profile with checkpointing
-    print("\nProfiling with checkpointing...")
-    model_cp = ProfileTestModel(use_checkpoint=True).to(device)
-    profiler_cp = MemoryProfiler(device)
-    
-    with profiler_cp.profile(model_cp):
-        x = torch.randn(16, 512, device=device)
-        y = torch.randint(0, 10, (16,), device=device)
-        
-        optimizer = optim.Adam(model_cp.parameters())
-        
-        # Training step
-        profiler_cp.snapshot('start')
-        output = model_cp(x)
-        profiler_cp.snapshot('after_forward')
-        loss = criterion(output, y)
-        loss.backward()
-        profiler_cp.snapshot('after_backward')
-        optimizer.step()
-        profiler_cp.snapshot('after_optimizer')
-    
-    peak_cp = profiler_cp.get_peak_memory()
-    avg_cp = profiler_cp.get_average_memory()
-    
-    print(f"  Peak memory: {peak_cp:.2f} MB")
-    print(f"  Average memory: {avg_cp:.2f} MB")
-    
-    # Compare results
-    print("\nMemory savings with checkpointing:")
-    print(f"  Peak memory reduced by: {(1 - peak_cp/peak_no_cp)*100:.1f}%")
-    print(f"  Average memory reduced by: {(1 - avg_cp/avg_no_cp)*100:.1f}%")
-    
-    # Memory by phase analysis
-    print("\nMemory usage by phase (with checkpointing):")
-    by_phase = profiler_cp.get_memory_by_phase()
-    for phase, memories in by_phase.items():
-        if memories:
-            print(f"  {phase}: {np.mean(memories):.2f} MB (avg)")
-
-
-def example_7_gradient_accumulation():
-    """Example 7: Combining checkpointing with gradient accumulation."""
-    print("\n" + "="*60)
-    print("Example 7: Gradient Accumulation with Checkpointing")
-    print("="*60)
-    
-    # Create model and data
-    model = nn.Sequential(
-        nn.Linear(784, 512),
-        nn.ReLU(),
-        nn.Linear(512, 512),
-        nn.ReLU(),
-        nn.Linear(512, 10)
-    )
-    
-    # Create dummy dataset
-    dataset = TensorDataset(
-        torch.randn(100, 784),
-        torch.randint(0, 10, (100,))
-    )
-    dataloader = DataLoader(dataset, batch_size=10, shuffle=True)
-    
-    optimizer = optim.Adam(model.parameters())
-    criterion = nn.CrossEntropyLoss()
-    
-    print("Training with gradient accumulation and checkpointing...")
-    print("  Effective batch size: 40 (4 accumulation steps × 10)")
-    print("  Checkpoint segments: 2")
-    
-    # Train with gradient accumulation and checkpointing
-    memory_efficient_gradient_accumulation(
-        model=model,
-        data_loader=dataloader,
-        loss_fn=criterion,
-        optimizer=optimizer,
-        accumulation_steps=4,
-        checkpoint_segments=2
-    )
-    
-    print("\nTraining complete!")
-    print("This approach allows training with larger effective batch sizes")
-    print("while keeping memory usage low.")
-
-
-def example_8_mixed_precision():
-    """Example 8: Combining checkpointing with mixed precision."""
-    print("\n" + "="*60)
-    print("Example 8: Mixed Precision + Checkpointing")
-    print("="*60)
-    
-    if not torch.cuda.is_available():
-        print("CUDA not available. Skipping mixed precision example.")
-        return
-    
-    device = 'cuda'
-    
-    # Create model
-    model = nn.Sequential(
-        nn.Linear(1024, 2048),
-        nn.ReLU(),
-        nn.Linear(2048, 2048),
-        nn.ReLU(),
-        nn.Linear(2048, 1024),
-        nn.ReLU(),
-        nn.Linear(1024, 10)
-    ).to(device)
-    
-    # Training data
-    x = torch.randn(32, 1024, device=device)
-    y = torch.randint(0, 10, (32,), device=device)
-    
-    optimizer = optim.Adam(model.parameters())
-    criterion = nn.CrossEntropyLoss()
-    scaler = torch.cuda.amp.GradScaler()
-    
-    print("Training with mixed precision and checkpointing...")
-    
-    # Reset memory stats
-    torch.cuda.reset_peak_memory_stats()
-    
-    # Training step with mixed precision and checkpointing
-    with torch.cuda.amp.autocast():
-        # Use checkpointing for middle layers
-        def forward_with_checkpoint(x):
-            x = model[0](x)  # First layer
-            x = model[1](x)
-            x = checkpoint(model[2], x)  # Checkpoint middle layer
-            x = checkpoint(model[3], x)
-            x = model[4](x)
-            x = model[5](x)
-            x = model[6](x)  # Output layer
+                x = self.encoder(x)
+                x = self.decoder(x)
             return x
-        
-        output = forward_with_checkpoint(x)
-        loss = criterion(output, y)
     
-    # Scaled backward pass
-    scaler.scale(loss).backward()
-    scaler.step(optimizer)
-    scaler.update()
+    model = BrainSegmentationModel()
     
-    peak_memory = torch.cuda.max_memory_allocated() / 1024 / 1024
+    # Create sample brain MRI data
+    batch_size = 2
+    brain_mri = torch.randn(batch_size, 1, 128, 128, 128)
+    labels = torch.randint(0, 4, (batch_size, 128, 128, 128))
     
-    print(f"\nResults:")
-    print(f"  Loss: {loss.item():.4f}")
-    print(f"  Peak memory: {peak_memory:.2f} MB")
-    print("\nMixed precision reduces memory for activations (FP16)")
-    print("while checkpointing reduces stored activations.")
-    print("Combined, they provide maximum memory efficiency!")
+    print("Brain Segmentation Model:")
+    print(f"  Input: T1-weighted MRI {brain_mri.shape}")
+    print(f"  Output: 4-class segmentation (BG, GM, WM, CSF)")
+    
+    # Setup training
+    optimizer = optim.Adam(model.parameters())
+    criterion = nn.CrossEntropyLoss()
+    scaler = torch.cuda.amp.GradScaler() if torch.cuda.is_available() else None
+    
+    print("\nTraining configurations:")
+    print("1. Standard FP32 training")
+    print("2. FP32 with checkpointing")
+    print("3. Mixed precision (FP16) training")
+    print("4. Mixed precision with checkpointing (maximum efficiency)")
+    
+    # Configuration 4: Mixed precision + checkpointing
+    model.train()
+    
+    with torch.cuda.amp.autocast(enabled=(scaler is not None)):
+        output = model(brain_mri, use_checkpoint=True)
+        loss = criterion(output, labels)
+    
+    if scaler:
+        scaler.scale(loss).backward()
+        scaler.step(optimizer)
+        scaler.update()
+    else:
+        loss.backward()
+        optimizer.step()
+    
+    print(f"\nLoss: {loss.item():.4f}")
+    print("\nMemory savings with mixed precision + checkpointing:")
+    print("  - FP16 reduces activation memory by ~50%")
+    print("  - Checkpointing reduces stored activations by ~60%")
+    print("  - Combined: ~80% memory reduction")
+    print("  - Enables 4x larger batch size or 2x larger volumes")
+
+
+def example_6_multi_gpu_checkpointing():
+    """Example 6: Distributed training with checkpointing for large cohorts."""
+    print("\n" + "="*60)
+    print("Example 6: Multi-GPU Training for Large Medical Cohorts")
+    print("="*60)
+    
+    print("Scenario: Training on large-scale brain MRI dataset")
+    print("  - Dataset: 10,000 T1-weighted MRI scans")
+    print("  - Task: Whole-brain parcellation (100+ regions)")
+    print("  - Hardware: 4x V100 GPUs (16GB each)")
+    
+    print("\nDistributed training strategy:")
+    print("1. Data parallelism across 4 GPUs")
+    print("2. Gradient checkpointing on each GPU")
+    print("3. Gradient accumulation for effective batch size")
+    
+    # Pseudo-code for distributed setup
+    print("\nPseudo-code for distributed training:")
+    print("""
+    # Initialize distributed training
+    torch.distributed.init_process_group(backend='nccl')
+    local_rank = torch.distributed.get_rank()
+    torch.cuda.set_device(local_rank)
+    
+    # Create model with checkpointing
+    model = BrainParcellationNet()
+    model = apply_checkpointing(model, checkpoint_ratio=0.5)
+    model = model.cuda(local_rank)
+    model = nn.parallel.DistributedDataParallel(model, device_ids=[local_rank])
+    
+    # Distributed data loading
+    dataset = BrainMRIDataset('path/to/data')
+    sampler = DistributedSampler(dataset)
+    dataloader = DataLoader(dataset, sampler=sampler, batch_size=2)
+    
+    # Training loop with gradient accumulation
+    accumulation_steps = 4
+    for epoch in range(num_epochs):
+        for i, (mri_volume, parcellation) in enumerate(dataloader):
+            outputs = model(mri_volume)
+            loss = criterion(outputs, parcellation) / accumulation_steps
+            loss.backward()
+            
+            if (i + 1) % accumulation_steps == 0:
+                optimizer.step()
+                optimizer.zero_grad()
+    """)
+    
+    print("\nEffective training configuration:")
+    print("  - Local batch size: 2 volumes per GPU")
+    print("  - Gradient accumulation: 4 steps")
+    print("  - Effective batch size: 2 * 4 * 4 = 32 volumes")
+    print("  - Memory per GPU: ~14GB (fits in 16GB V100)")
+    print("  - Training speed: ~100 volumes/minute")
 
 
 def run_all_examples():
-    """Run all examples in sequence."""
+    """Run all medical imaging examples."""
     print("\n" + "="*80)
-    print("GRADIENT CHECKPOINTING: Comprehensive Examples")
+    print("Gradient Checkpointing Examples for 3D Medical Imaging")
     print("="*80)
     
     examples = [
-        ("Basic Checkpointing", example_1_basic_checkpointing),
-        ("Checkpointed Sequential", example_2_checkpointed_sequential),
-        ("Selective Checkpointing", example_3_selective_checkpointing),
-        ("Optimal Checkpoint Selection", example_4_optimal_checkpoint_selection),
-        ("Architecture-Specific Strategies", example_5_architecture_specific),
-        ("Memory Profiling", example_6_memory_profiling),
-        ("Gradient Accumulation", example_7_gradient_accumulation),
-        ("Mixed Precision", example_8_mixed_precision)
+        ("3D U-Net Brain MRI Segmentation", example_1_basic_3d_unet_checkpointing),
+        ("V-Net Cardiac Imaging", example_2_medical_sequential_checkpointing),
+        ("nnU-Net Selective Checkpointing", example_3_selective_layer_checkpointing),
+        ("Optimal GPU Memory Management", example_4_optimal_checkpointing_strategy),
+        ("Mixed Precision Brain Segmentation", example_5_mixed_precision_checkpointing),
+        ("Multi-GPU Large Cohort Training", example_6_multi_gpu_checkpointing)
     ]
     
-    for i, (name, example_func) in enumerate(examples, 1):
-        print(f"\n[{i}/{len(examples)}] Running: {name}")
+    print("\nAvailable Examples:")
+    for i, (name, _) in enumerate(examples, 1):
+        print(f"  {i}. {name}")
+    
+    print("\nRunning all examples...")
+    
+    for name, example_func in examples:
         try:
             example_func()
         except Exception as e:
-            print(f"Error in {name}: {e}")
-            continue
+            print(f"\nError in {name}: {e}")
+            print("Continuing with next example...")
     
     print("\n" + "="*80)
-    print("All examples completed!")
+    print("Examples completed successfully!")
     print("="*80)
-    print("\nSummary of techniques demonstrated:")
-    print("1. Basic checkpoint function usage")
-    print("2. Sequential container with automatic checkpointing")
-    print("3. Selective layer-wise checkpointing")
-    print("4. Dynamic programming for optimal checkpoint placement")
-    print("5. Architecture-specific strategies (ResNet, Transformer, U-Net)")
-    print("6. Memory profiling and analysis")
-    print("7. Gradient accumulation for large batch training")
-    print("8. Mixed precision training combination")
-    print("\nUse these techniques to train larger models with limited GPU memory!")
 
 
 if __name__ == "__main__":

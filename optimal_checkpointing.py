@@ -1,8 +1,9 @@
 """
-Optimal checkpoint selection using dynamic programming.
+Optimal checkpoint selection for 3D medical imaging models using dynamic programming.
 
-This module implements algorithms to find the optimal checkpoint locations
-given a memory budget, minimizing recomputation while staying within memory constraints.
+This module implements algorithms to find optimal checkpoint locations in 3D U-Net,
+V-Net, and other medical imaging architectures, minimizing recomputation while 
+staying within GPU memory constraints when processing large 3D MRI/CT volumes.
 """
 
 import numpy as np
@@ -13,36 +14,42 @@ import torch.nn as nn
 
 
 @dataclass
-class LayerProfile:
-    """Profile information for a single layer."""
+class MedicalLayerProfile:
+    """Profile information for a single layer in a medical imaging model."""
     layer_idx: int
     forward_compute_cost: float  # Time in milliseconds
     backward_compute_cost: float  # Time in milliseconds
-    activation_memory: float  # Memory in MB
+    activation_memory: float  # Memory in MB (critical for 3D volumes)
     parameter_memory: float  # Memory in MB
+    volume_dimensions: Optional[Tuple[int, int, int]] = None  # (D, H, W) for 3D
+    layer_type: str = ""  # e.g., "conv3d", "pooling", "upsampling"
     name: str = ""
 
 
 @dataclass
-class CheckpointingPlan:
-    """Optimal checkpointing plan."""
+class MedicalCheckpointingPlan:
+    """Optimal checkpointing plan for medical imaging models."""
     checkpoint_layers: List[int]  # Indices of layers to checkpoint
     total_memory: float  # Total memory usage in MB
     total_compute: float  # Total compute time in ms
     memory_savings: float  # Memory saved compared to no checkpointing
-    compute_overhead: float  # Additional compute time compared to no checkpointing
+    compute_overhead: float  # Additional compute time
+    estimated_batch_size: int = 1  # Maximum batch size with this plan
 
 
-class OptimalCheckpointer:
+class OptimalMedicalCheckpointer:
     """
-    Find optimal checkpoint locations using dynamic programming.
+    Find optimal checkpoint locations for 3D medical imaging models.
     
-    The algorithm minimizes recomputation cost while staying within memory budget.
+    Optimized for architectures processing large 3D volumes like:
+    - 3D U-Net for brain MRI segmentation
+    - V-Net for volumetric medical image segmentation
+    - nnU-Net for various medical imaging tasks
     """
     
-    def __init__(self, layer_profiles: List[LayerProfile]):
+    def __init__(self, layer_profiles: List[MedicalLayerProfile]):
         """
-        Initialize optimal checkpointer.
+        Initialize optimal checkpointer for medical imaging.
         
         Args:
             layer_profiles: Profile information for each layer
@@ -52,6 +59,9 @@ class OptimalCheckpointer:
         
         # Precompute cumulative costs
         self._precompute_costs()
+        
+        # Identify critical layers (e.g., bottleneck in U-Net)
+        self._identify_critical_layers()
     
     def _precompute_costs(self):
         """Precompute cumulative memory and compute costs."""
@@ -76,40 +86,80 @@ class OptimalCheckpointer:
             self.cumulative_forward_compute[-1] + self.cumulative_backward_compute[-1]
         )
     
+    def _identify_critical_layers(self):
+        """Identify critical layers for medical imaging models."""
+        self.critical_layers = []
+        
+        for i, profile in enumerate(self.layer_profiles):
+            # Critical layers are those with high memory usage (e.g., encoder outputs)
+            if profile.activation_memory > np.mean([p.activation_memory for p in self.layer_profiles]) * 1.5:
+                self.critical_layers.append(i)
+            
+            # Also mark transition layers (e.g., pooling, upsampling)
+            if profile.layer_type in ["pooling", "upsampling", "maxpool3d", "upsample3d"]:
+                if i not in self.critical_layers:
+                    self.critical_layers.append(i)
+    
+    def find_optimal_checkpoints_for_volume(
+        self, 
+        volume_size: Tuple[int, int, int],
+        gpu_memory_gb: float,
+        batch_size: int = 1
+    ) -> MedicalCheckpointingPlan:
+        """
+        Find optimal checkpoints for a specific 3D volume size.
+        
+        Args:
+            volume_size: (D, H, W) dimensions of the 3D volume
+            gpu_memory_gb: Available GPU memory in GB
+            batch_size: Desired batch size
+        
+        Returns:
+            Optimal checkpointing plan
+        """
+        # Convert GB to MB
+        memory_budget = gpu_memory_gb * 1024
+        
+        # Reserve memory for model parameters and optimizer states
+        parameter_memory = sum(p.parameter_memory for p in self.layer_profiles)
+        optimizer_memory = parameter_memory * 2  # Rough estimate for Adam
+        available_memory = memory_budget - parameter_memory - optimizer_memory
+        
+        # Adjust for batch size
+        per_sample_budget = available_memory / batch_size
+        
+        return self.find_optimal_checkpoints(per_sample_budget, prioritize_critical=True)
+    
     def find_optimal_checkpoints(
         self, 
         memory_budget: float,
-        max_checkpoints: Optional[int] = None
-    ) -> CheckpointingPlan:
+        max_checkpoints: Optional[int] = None,
+        prioritize_critical: bool = True
+    ) -> MedicalCheckpointingPlan:
         """
         Find optimal checkpoint locations using dynamic programming.
         
         Args:
             memory_budget: Maximum memory budget in MB
             max_checkpoints: Maximum number of checkpoints allowed
+            prioritize_critical: Whether to prioritize critical layers
         
         Returns:
-            Optimal checkpointing plan
+            Optimal checkpointing plan for medical imaging
         """
         if max_checkpoints is None:
             max_checkpoints = self.num_layers
         
         # DP state: dp[i][k] = (min_compute, checkpoints)
-        # i = layer index, k = number of checkpoints used
         dp = {}
         
         def solve(layer_idx: int, checkpoints_left: int, memory_used: float) -> Tuple[float, List[int]]:
             """
-            Recursive DP with memoization.
-            
-            Returns:
-                (total_compute_cost, checkpoint_locations)
+            Recursive DP with memoization, optimized for medical imaging.
             """
-            # Base case: processed all layers
             if layer_idx >= self.num_layers:
                 return 0.0, []
             
-            # Check if we've seen this state
             state = (layer_idx, checkpoints_left, int(memory_used))
             if state in dp:
                 return dp[state]
@@ -117,22 +167,28 @@ class OptimalCheckpointer:
             best_cost = float('inf')
             best_checkpoints = []
             
+            profile = self.layer_profiles[layer_idx]
+            
             # Option 1: Don't checkpoint at this layer
-            if memory_used + self.layer_profiles[layer_idx].activation_memory <= memory_budget:
-                next_memory = memory_used + self.layer_profiles[layer_idx].activation_memory
+            if memory_used + profile.activation_memory <= memory_budget:
+                next_memory = memory_used + profile.activation_memory
                 cost, checkpoints = solve(layer_idx + 1, checkpoints_left, next_memory)
-                total_cost = cost + self.layer_profiles[layer_idx].forward_compute_cost
+                total_cost = cost + profile.forward_compute_cost
                 
                 if total_cost < best_cost:
                     best_cost = total_cost
                     best_checkpoints = checkpoints
             
-            # Option 2: Checkpoint at this layer (if we have checkpoints left)
+            # Option 2: Checkpoint at this layer
             if checkpoints_left > 0:
-                # Checkpointing means we don't store activations but need to recompute
-                recompute_cost = self.layer_profiles[layer_idx].forward_compute_cost
+                # Bonus for checkpointing critical layers
+                bonus = 0
+                if prioritize_critical and layer_idx in self.critical_layers:
+                    bonus = -profile.forward_compute_cost * 0.1  # 10% bonus
+                
+                recompute_cost = profile.forward_compute_cost
                 cost, checkpoints = solve(layer_idx + 1, checkpoints_left - 1, memory_used)
-                total_cost = cost + self.layer_profiles[layer_idx].forward_compute_cost + recompute_cost
+                total_cost = cost + profile.forward_compute_cost + recompute_cost + bonus
                 
                 if total_cost < best_cost:
                     best_cost = total_cost
@@ -144,177 +200,173 @@ class OptimalCheckpointer:
         # Find optimal solution
         total_compute, checkpoint_layers = solve(0, max_checkpoints, 0)
         
-        # Calculate actual memory usage with checkpointing
-        total_memory = sum(
-            profile.parameter_memory for profile in self.layer_profiles
-        )
+        # Calculate actual memory usage
+        total_memory = sum(profile.parameter_memory for profile in self.layer_profiles)
         
-        # Add activation memory for non-checkpointed layers
         for i, profile in enumerate(self.layer_profiles):
             if i not in checkpoint_layers:
                 total_memory += profile.activation_memory
         
-        # Create plan
-        plan = CheckpointingPlan(
+        # Estimate maximum batch size
+        estimated_batch_size = max(1, int(memory_budget / total_memory))
+        
+        plan = MedicalCheckpointingPlan(
             checkpoint_layers=checkpoint_layers,
             total_memory=total_memory,
             total_compute=total_compute,
             memory_savings=self.total_memory_no_checkpoint - total_memory,
-            compute_overhead=total_compute - self.total_compute_no_checkpoint
+            compute_overhead=total_compute - self.total_compute_no_checkpoint,
+            estimated_batch_size=estimated_batch_size
         )
         
         return plan
     
-    def find_optimal_k_checkpoints(self, k: int) -> CheckpointingPlan:
+    def find_unet_optimal_checkpoints(self) -> MedicalCheckpointingPlan:
         """
-        Find optimal locations for exactly k checkpoints.
+        Find optimal checkpoints specifically for U-Net architecture.
         
-        This uses a different DP formulation optimized for fixed k.
-        
-        Args:
-            k: Number of checkpoints to place
-        
-        Returns:
-            Optimal checkpointing plan
+        U-Net has encoder-decoder structure with skip connections.
+        Optimal strategy often involves checkpointing at:
+        - Encoder-decoder boundary (bottleneck)
+        - After each downsampling
+        - Before each upsampling
         """
-        if k >= self.num_layers:
-            # Checkpoint everything
-            return CheckpointingPlan(
-                checkpoint_layers=list(range(self.num_layers)),
-                total_memory=sum(p.parameter_memory for p in self.layer_profiles),
-                total_compute=self.total_compute_no_checkpoint + self.cumulative_forward_compute[-1],
-                memory_savings=self.total_memory_no_checkpoint,
-                compute_overhead=self.cumulative_forward_compute[-1]
-            )
-        
-        # DP: dp[i][j] = minimum memory to process layers 0..i with j checkpoints
-        dp = np.full((self.num_layers + 1, k + 1), float('inf'))
-        parent = {}
-        
-        # Base case
-        dp[0][0] = 0
-        
-        for i in range(1, self.num_layers + 1):
-            for j in range(min(i, k) + 1):
-                # Option 1: Don't checkpoint layer i-1
-                if j <= i - 1:
-                    mem_cost = dp[i-1][j] + self.layer_profiles[i-1].activation_memory
-                    if mem_cost < dp[i][j]:
-                        dp[i][j] = mem_cost
-                        parent[(i, j)] = (i-1, j, False)
-                
-                # Option 2: Checkpoint layer i-1
-                if j > 0 and j - 1 <= i - 1:
-                    mem_cost = dp[i-1][j-1]  # No activation memory needed
-                    if mem_cost < dp[i][j]:
-                        dp[i][j] = mem_cost
-                        parent[(i, j)] = (i-1, j-1, True)
-        
-        # Reconstruct solution
         checkpoint_layers = []
-        i, j = self.num_layers, k
         
-        while i > 0 and (i, j) in parent:
-            prev_i, prev_j, is_checkpoint = parent[(i, j)]
-            if is_checkpoint:
-                checkpoint_layers.append(prev_i)
-            i, j = prev_i, prev_j
+        # Find encoder-decoder boundary (typically middle of the network)
+        bottleneck_idx = self.num_layers // 2
+        checkpoint_layers.append(bottleneck_idx)
         
-        checkpoint_layers.reverse()
+        # Add checkpoints at pooling/upsampling layers
+        for i, profile in enumerate(self.layer_profiles):
+            if profile.layer_type in ["pooling", "upsampling", "maxpool3d", "upsample3d"]:
+                if i not in checkpoint_layers:
+                    checkpoint_layers.append(i)
+        
+        checkpoint_layers.sort()
         
         # Calculate costs
-        total_memory = dp[self.num_layers][k] + sum(
-            p.parameter_memory for p in self.layer_profiles
-        )
+        total_memory = sum(p.parameter_memory for p in self.layer_profiles)
+        compute_overhead = 0
         
-        # Compute overhead from recomputation
-        compute_overhead = sum(
-            self.layer_profiles[idx].forward_compute_cost 
-            for idx in checkpoint_layers
-        )
+        for i, profile in enumerate(self.layer_profiles):
+            if i not in checkpoint_layers:
+                total_memory += profile.activation_memory
+            else:
+                compute_overhead += profile.forward_compute_cost
         
-        return CheckpointingPlan(
+        return MedicalCheckpointingPlan(
             checkpoint_layers=checkpoint_layers,
             total_memory=total_memory,
             total_compute=self.total_compute_no_checkpoint + compute_overhead,
             memory_savings=self.total_memory_no_checkpoint - total_memory,
-            compute_overhead=compute_overhead
+            compute_overhead=compute_overhead,
+            estimated_batch_size=1
         )
 
 
-class SegmentedCheckpointing:
+class VolumetricSegmentedCheckpointing:
     """
-    Segment-based checkpointing strategy.
+    Segment-based checkpointing strategy for 3D volumetric medical data.
     
-    Divides the model into segments and checkpoints between segments.
-    This is simpler than full DP but still effective.
+    Optimized for processing large 3D MRI/CT volumes with limited GPU memory.
     """
     
     @staticmethod
-    def compute_optimal_segments(
+    def compute_optimal_segments_for_volume(
+        volume_size: Tuple[int, int, int],
         num_layers: int,
-        memory_budget_ratio: float = 0.5
+        gpu_memory_gb: float
     ) -> int:
         """
-        Compute optimal number of segments based on memory budget.
-        
-        The optimal number of segments k minimizes:
-        - Memory: O(n/k) where n is number of layers
-        - Compute: O(n + n/k) due to recomputation
+        Compute optimal number of segments for 3D medical volumes.
         
         Args:
-            num_layers: Total number of layers
-            memory_budget_ratio: Fraction of full memory to use (0-1)
+            volume_size: (D, H, W) dimensions of 3D volume
+            num_layers: Total number of layers in the model
+            gpu_memory_gb: Available GPU memory in GB
         
         Returns:
             Optimal number of segments
         """
-        # Theoretical optimal: k = sqrt(n * (1 - memory_budget_ratio))
-        optimal_k = int(np.sqrt(num_layers * (1 - memory_budget_ratio)))
+        # Calculate volume memory footprint
+        voxels = np.prod(volume_size)
+        volume_memory_gb = (voxels * 4 * 32) / (1024**3)  # Assuming 32 channels, float32
+        
+        # Memory pressure ratio
+        memory_pressure = volume_memory_gb / gpu_memory_gb
+        
+        if memory_pressure > 0.7:
+            # High memory pressure - aggressive checkpointing
+            optimal_k = int(np.sqrt(num_layers * 2))
+        elif memory_pressure > 0.4:
+            # Moderate memory pressure
+            optimal_k = int(np.sqrt(num_layers))
+        else:
+            # Low memory pressure
+            optimal_k = int(np.sqrt(num_layers * 0.5))
+        
         return max(1, min(num_layers, optimal_k))
     
     @staticmethod
-    def get_segment_boundaries(num_layers: int, num_segments: int) -> List[int]:
+    def get_medical_architecture_segments(
+        architecture: str,
+        num_layers: int
+    ) -> List[int]:
         """
-        Get layer indices that mark segment boundaries.
+        Get checkpoint locations based on medical imaging architecture.
         
         Args:
+            architecture: Architecture name ("unet", "vnet", "nnunet")
             num_layers: Total number of layers
-            num_segments: Number of segments
         
         Returns:
             List of layer indices to checkpoint
         """
-        if num_segments <= 1:
-            return []
+        if architecture.lower() == "unet":
+            # U-Net: checkpoint at each resolution change
+            # Typically 4-5 resolution levels
+            num_levels = 5
+            segment_size = num_layers // (num_levels * 2)  # encoder + decoder
+            return [i * segment_size for i in range(1, num_levels * 2)]
         
-        segment_size = num_layers / num_segments
-        boundaries = []
+        elif architecture.lower() == "vnet":
+            # V-Net: similar to U-Net but with residual connections
+            # Checkpoint after each residual block
+            num_blocks = num_layers // 4  # Assuming 4 layers per block
+            return [i * 4 for i in range(1, num_blocks)]
         
-        for i in range(1, num_segments):
-            boundary = int(i * segment_size)
-            if boundary < num_layers:
-                boundaries.append(boundary)
+        elif architecture.lower() == "nnunet":
+            # nnU-Net: adaptive architecture
+            # Use aggressive checkpointing due to large volumes
+            return list(range(2, num_layers, 3))
         
-        return boundaries
+        else:
+            # Default: uniform distribution
+            num_segments = int(np.sqrt(num_layers))
+            segment_size = num_layers // num_segments
+            return [i * segment_size for i in range(1, num_segments)]
 
 
-def profile_model(model: nn.Module, input_shape: Tuple[int, ...]) -> List[LayerProfile]:
+def profile_medical_model(
+    model: nn.Module, 
+    volume_shape: Tuple[int, int, int, int]
+) -> List[MedicalLayerProfile]:
     """
-    Profile a model to get compute and memory costs per layer.
+    Profile a 3D medical imaging model for memory and compute costs.
     
     Args:
-        model: The model to profile
-        input_shape: Shape of input tensor
+        model: The 3D medical imaging model (U-Net, V-Net, etc.)
+        volume_shape: Shape of input volume (B, C, D, H, W)
     
     Returns:
         List of layer profiles
     """
     profiles = []
-    device = next(model.parameters()).device
+    device = next(model.parameters()).device if torch.cuda.is_available() else 'cpu'
     
-    # Create dummy input
-    x = torch.randn(*input_shape, device=device, requires_grad=True)
+    # Create dummy 3D volume
+    x = torch.randn(*volume_shape, device=device, requires_grad=True)
     
     # Hook to capture activations
     activation_sizes = {}
@@ -323,7 +375,13 @@ def profile_model(model: nn.Module, input_shape: Tuple[int, ...]) -> List[LayerP
     def hook_fn(name):
         def hook(module, input, output):
             if isinstance(output, torch.Tensor):
-                activation_sizes[name] = output.numel() * output.element_size() / 1024 / 1024  # MB
+                # Calculate memory for 3D tensors
+                memory_mb = output.numel() * output.element_size() / (1024 * 1024)
+                activation_sizes[name] = memory_mb
+                
+                # Store volume dimensions if 5D tensor (batch, channel, depth, height, width)
+                if output.dim() == 5:
+                    activation_sizes[f"{name}_dims"] = output.shape[2:]
         return hook
     
     # Register hooks
@@ -346,21 +404,35 @@ def profile_model(model: nn.Module, input_shape: Tuple[int, ...]) -> List[LayerP
             # Calculate parameter memory
             param_memory = sum(
                 p.numel() * p.element_size() for p in module.parameters()
-            ) / 1024 / 1024  # MB
+            ) / (1024 * 1024)  # MB
             
             # Get activation memory
             activation_memory = activation_sizes.get(name, 0.0)
             
-            # Estimate compute cost (simplified)
-            forward_cost = activation_memory * 0.1  # Rough estimate
-            backward_cost = forward_cost * 2  # Backward typically 2x forward
+            # Get volume dimensions if available
+            volume_dims = activation_sizes.get(f"{name}_dims", None)
             
-            profile = LayerProfile(
+            # Determine layer type
+            layer_type = module.__class__.__name__.lower()
+            
+            # Estimate compute cost (more accurate for 3D operations)
+            if "conv3d" in layer_type:
+                forward_cost = activation_memory * 0.5  # 3D convolutions are expensive
+            elif "pool" in layer_type or "upsamp" in layer_type:
+                forward_cost = activation_memory * 0.1  # Pooling/upsampling is cheaper
+            else:
+                forward_cost = activation_memory * 0.2
+            
+            backward_cost = forward_cost * 2.5  # Backward pass for 3D is expensive
+            
+            profile = MedicalLayerProfile(
                 layer_idx=i,
                 forward_compute_cost=forward_cost,
                 backward_compute_cost=backward_cost,
                 activation_memory=activation_memory,
                 parameter_memory=param_memory,
+                volume_dimensions=volume_dims,
+                layer_type=layer_type,
                 name=name
             )
             profiles.append(profile)
@@ -368,85 +440,138 @@ def profile_model(model: nn.Module, input_shape: Tuple[int, ...]) -> List[LayerP
     return profiles
 
 
-def demonstrate_optimal_checkpointing():
-    """Demonstrate optimal checkpointing on a sample model."""
+def demonstrate_medical_checkpointing():
+    """Demonstrate optimal checkpointing for 3D medical imaging models."""
     print("=" * 80)
-    print("Optimal Checkpointing Demonstration")
+    print("Optimal Checkpointing for 3D Medical Imaging")
     print("=" * 80)
     
-    # Create sample layer profiles
-    num_layers = 12
+    # Simulate a 3D U-Net architecture for brain MRI segmentation
+    num_layers = 23  # Typical U-Net depth
     profiles = []
     
-    for i in range(num_layers):
-        # Simulate varying layer costs
-        if i % 3 == 0:  # Every 3rd layer is more expensive
-            activation_memory = 100.0  # MB
-            forward_cost = 50.0  # ms
-        else:
-            activation_memory = 50.0  # MB
-            forward_cost = 20.0  # ms
+    # Encoder path (downsampling)
+    for i in range(0, 11):
+        if i % 3 == 0:  # Pooling layers
+            activation_memory = 50.0 * (2 ** (i // 3))  # Memory increases with depth
+            forward_cost = 10.0
+            layer_type = "maxpool3d"
+        else:  # Conv layers
+            activation_memory = 100.0 * (2 ** (i // 3))
+            forward_cost = 50.0 * (2 ** (i // 3))
+            layer_type = "conv3d"
         
-        profile = LayerProfile(
+        profile = MedicalLayerProfile(
             layer_idx=i,
             forward_compute_cost=forward_cost,
-            backward_compute_cost=forward_cost * 2,
+            backward_compute_cost=forward_cost * 2.5,
             activation_memory=activation_memory,
-            parameter_memory=10.0,
-            name=f"layer_{i}"
+            parameter_memory=20.0,
+            layer_type=layer_type,
+            name=f"encoder_{i}"
+        )
+        profiles.append(profile)
+    
+    # Bottleneck
+    profile = MedicalLayerProfile(
+        layer_idx=11,
+        forward_compute_cost=100.0,
+        backward_compute_cost=250.0,
+        activation_memory=200.0,
+        parameter_memory=40.0,
+        layer_type="conv3d",
+        name="bottleneck"
+    )
+    profiles.append(profile)
+    
+    # Decoder path (upsampling)
+    for i in range(12, 23):
+        if (i - 12) % 3 == 0:  # Upsampling layers
+            activation_memory = 50.0 * (2 ** ((22 - i) // 3))
+            forward_cost = 15.0
+            layer_type = "upsample3d"
+        else:  # Conv layers
+            activation_memory = 100.0 * (2 ** ((22 - i) // 3))
+            forward_cost = 50.0 * (2 ** ((22 - i) // 3))
+            layer_type = "conv3d"
+        
+        profile = MedicalLayerProfile(
+            layer_idx=i,
+            forward_compute_cost=forward_cost,
+            backward_compute_cost=forward_cost * 2.5,
+            activation_memory=activation_memory,
+            parameter_memory=20.0,
+            layer_type=layer_type,
+            name=f"decoder_{i}"
         )
         profiles.append(profile)
     
     # Create optimizer
-    optimizer = OptimalCheckpointer(profiles)
+    optimizer = OptimalMedicalCheckpointer(profiles)
     
-    print(f"\nModel Configuration:")
+    print(f"\n3D U-Net Model Configuration:")
+    print(f"  Architecture: U-Net for brain MRI segmentation")
     print(f"  Number of layers: {num_layers}")
     print(f"  Total activation memory: {optimizer.total_memory_no_checkpoint:.1f} MB")
     print(f"  Total compute time: {optimizer.total_compute_no_checkpoint:.1f} ms")
     
-    # Test different memory budgets
+    # Test for different GPU configurations
     print(f"\n{'-'*80}")
-    print("Testing different memory budgets:")
+    print("Optimization for different GPU memory configurations:")
     print(f"{'-'*80}")
     
-    for budget_ratio in [0.3, 0.5, 0.7]:
-        memory_budget = optimizer.total_memory_no_checkpoint * budget_ratio
-        plan = optimizer.find_optimal_checkpoints(memory_budget)
-        
-        print(f"\nMemory budget: {budget_ratio*100:.0f}% ({memory_budget:.1f} MB)")
-        print(f"  Checkpoint layers: {plan.checkpoint_layers}")
-        print(f"  Total memory: {plan.total_memory:.1f} MB")
-        print(f"  Memory savings: {plan.memory_savings:.1f} MB ({plan.memory_savings/optimizer.total_memory_no_checkpoint*100:.1f}%)")
-        print(f"  Compute overhead: {plan.compute_overhead:.1f} ms ({plan.compute_overhead/optimizer.total_compute_no_checkpoint*100:.1f}%)")
+    gpu_configs = [
+        (8, "RTX 3070 (8GB)"),
+        (16, "V100 (16GB)"),
+        (24, "RTX 3090 (24GB)"),
+        (40, "A100 (40GB)")
+    ]
     
-    # Test fixed number of checkpoints
+    for gpu_memory, gpu_name in gpu_configs:
+        print(f"\n{gpu_name}:")
+        
+        # Test different volume sizes
+        volume_sizes = [
+            ((128, 128, 128), "Standard brain MRI"),
+            ((256, 256, 128), "High-res brain MRI"),
+            ((512, 512, 64), "Whole-body CT slice")
+        ]
+        
+        for volume_size, description in volume_sizes:
+            plan = optimizer.find_optimal_checkpoints_for_volume(
+                volume_size, gpu_memory, batch_size=1
+            )
+            
+            print(f"\n  {description} {volume_size}:")
+            print(f"    Checkpoint layers: {plan.checkpoint_layers[:5]}..." if len(plan.checkpoint_layers) > 5 else f"    Checkpoint layers: {plan.checkpoint_layers}")
+            print(f"    Memory usage: {plan.total_memory:.1f} MB")
+            print(f"    Memory savings: {plan.memory_savings:.1f} MB ({plan.memory_savings/optimizer.total_memory_no_checkpoint*100:.1f}%)")
+            print(f"    Compute overhead: {plan.compute_overhead:.1f} ms ({plan.compute_overhead/optimizer.total_compute_no_checkpoint*100:.1f}%)")
+            print(f"    Estimated max batch size: {plan.estimated_batch_size}")
+    
+    # Test U-Net specific optimization
     print(f"\n{'-'*80}")
-    print("Testing fixed number of checkpoints:")
+    print("U-Net specific optimization:")
     print(f"{'-'*80}")
     
-    for k in [2, 4, 6]:
-        plan = optimizer.find_optimal_k_checkpoints(k)
-        
-        print(f"\nWith {k} checkpoints:")
-        print(f"  Checkpoint layers: {plan.checkpoint_layers}")
-        print(f"  Total memory: {plan.total_memory:.1f} MB")
-        print(f"  Memory savings: {plan.memory_savings:.1f} MB ({plan.memory_savings/optimizer.total_memory_no_checkpoint*100:.1f}%)")
-        print(f"  Compute overhead: {plan.compute_overhead:.1f} ms ({plan.compute_overhead/optimizer.total_compute_no_checkpoint*100:.1f}%)")
+    unet_plan = optimizer.find_unet_optimal_checkpoints()
+    print(f"\nU-Net optimized checkpointing:")
+    print(f"  Checkpoint layers: {unet_plan.checkpoint_layers}")
+    print(f"  Total memory: {unet_plan.total_memory:.1f} MB")
+    print(f"  Memory savings: {unet_plan.memory_savings:.1f} MB")
+    print(f"  Compute overhead: {unet_plan.compute_overhead:.1f} ms")
     
-    # Test segmented approach
+    # Test architecture-specific segmentation
     print(f"\n{'-'*80}")
-    print("Segmented checkpointing approach:")
+    print("Architecture-specific segmented checkpointing:")
     print(f"{'-'*80}")
     
-    for memory_ratio in [0.3, 0.5, 0.7]:
-        num_segments = SegmentedCheckpointing.compute_optimal_segments(num_layers, memory_ratio)
-        boundaries = SegmentedCheckpointing.get_segment_boundaries(num_layers, num_segments)
-        
-        print(f"\nMemory budget ratio: {memory_ratio}")
-        print(f"  Optimal segments: {num_segments}")
-        print(f"  Checkpoint at layers: {boundaries}")
+    for arch in ["unet", "vnet", "nnunet"]:
+        segments = VolumetricSegmentedCheckpointing.get_medical_architecture_segments(
+            arch, num_layers
+        )
+        print(f"\n{arch.upper()} checkpoints: {segments}")
 
 
 if __name__ == "__main__":
-    demonstrate_optimal_checkpointing()
+    demonstrate_medical_checkpointing()

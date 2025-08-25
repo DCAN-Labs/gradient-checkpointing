@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Main entry point for gradient checkpointing demonstrations.
+Main entry point for gradient checkpointing demonstrations in 3D medical imaging.
 
-Run this script to see all features and capabilities of the gradient
-checkpointing library.
+Run this script to see all features and capabilities of gradient checkpointing
+for medical imaging models like 3D U-Net, V-Net, and nnU-Net.
 """
 
 import sys
@@ -13,38 +13,39 @@ import torch
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Gradient Checkpointing: Memory-Compute Trade-offs Demo',
+        description='Gradient Checkpointing for 3D Medical Imaging: Memory Optimization Demo',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python main.py --demo basic           # Run basic checkpointing demo
-  python main.py --demo benchmark       # Run benchmarking suite
-  python main.py --demo optimal         # Run optimal checkpoint selection
-  python main.py --demo architecture    # Run architecture-specific demos
-  python main.py --demo profiling       # Run memory profiling demo
-  python main.py --demo all            # Run all demonstrations
-  python main.py --example 1           # Run specific example (1-8)
-  python main.py --run-benchmarks      # Run full benchmark suite
+  python main.py --demo unet            # Run 3D U-Net checkpointing demo
+  python main.py --demo vnet            # Run V-Net checkpointing demo  
+  python main.py --demo benchmark       # Run medical imaging benchmarks
+  python main.py --demo optimal         # Run optimal checkpoint selection for MRI
+  python main.py --demo clinical        # Run clinical scenario demos
+  python main.py --demo all            # Run all medical imaging demonstrations
+  python main.py --example 1           # Run specific example (1-6)
+  python main.py --run-benchmarks      # Run full medical benchmark suite
+  python main.py --volume-size 128 128 128  # Specify custom volume size
         """
     )
     
     parser.add_argument(
         '--demo',
-        choices=['basic', 'benchmark', 'optimal', 'architecture', 'profiling', 'all'],
-        help='Which demonstration to run'
+        choices=['unet', 'vnet', 'benchmark', 'optimal', 'clinical', 'all'],
+        help='Which medical imaging demonstration to run'
     )
     
     parser.add_argument(
         '--example',
         type=int,
-        choices=range(1, 9),
-        help='Run specific example (1-8)'
+        choices=range(1, 7),
+        help='Run specific medical imaging example (1-6)'
     )
     
     parser.add_argument(
         '--run-benchmarks',
         action='store_true',
-        help='Run full benchmarking suite'
+        help='Run full medical imaging benchmarking suite'
     )
     
     parser.add_argument(
@@ -54,11 +55,26 @@ Examples:
         help='Device to use for demos'
     )
     
+    parser.add_argument(
+        '--volume-size',
+        nargs=3,
+        type=int,
+        default=[128, 128, 128],
+        help='3D volume size (D H W) for testing'
+    )
+    
+    parser.add_argument(
+        '--batch-size',
+        type=int,
+        default=2,
+        help='Batch size for medical volume processing'
+    )
+    
     args = parser.parse_args()
     
     # Print system info
     print("="*80)
-    print("Gradient Checkpointing Library")
+    print("Gradient Checkpointing for 3D Medical Imaging")
     print("="*80)
     print(f"PyTorch version: {torch.__version__}")
     print(f"CUDA available: {torch.cuda.is_available()}")
@@ -66,163 +82,233 @@ Examples:
         print(f"CUDA device: {torch.cuda.get_device_name(0)}")
         print(f"CUDA memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f} GB")
     print(f"Using device: {args.device}")
+    print(f"Volume size: {tuple(args.volume_size)} voxels")
+    print(f"Batch size: {args.batch_size}")
     print("="*80)
     
     # Handle different modes
     if args.demo:
-        run_demo(args.demo, args.device)
+        run_medical_demo(args.demo, args.device, tuple(args.volume_size), args.batch_size)
     elif args.example:
-        run_example(args.example)
+        run_medical_example(args.example)
     elif args.run_benchmarks:
-        run_full_benchmarks()
+        run_full_medical_benchmarks(tuple(args.volume_size), args.batch_size)
     else:
         # Default: show menu
-        show_interactive_menu()
+        show_medical_menu(args.device, tuple(args.volume_size), args.batch_size)
 
 
-def run_demo(demo_type, device):
-    """Run specific demonstration."""
+def run_medical_demo(demo_type, device, volume_size, batch_size):
+    """Run specific medical imaging demonstration."""
     
-    if demo_type == 'basic':
-        print("\nRunning Basic Checkpointing Demo...")
-        from gradient_checkpointing import checkpoint
-        from examples import example_1_basic_checkpointing
-        example_1_basic_checkpointing()
+    if demo_type == 'unet':
+        print("\n🧠 Running 3D U-Net Checkpointing Demo...")
+        print("Application: Brain MRI Segmentation")
+        from examples import example_1_basic_3d_unet_checkpointing
+        example_1_basic_3d_unet_checkpointing()
+        
+    elif demo_type == 'vnet':
+        print("\n❤️ Running V-Net Checkpointing Demo...")
+        print("Application: Cardiac MRI Analysis")
+        from examples import example_2_medical_sequential_checkpointing
+        example_2_medical_sequential_checkpointing()
         
     elif demo_type == 'benchmark':
-        print("\nRunning Benchmark Demo...")
-        from benchmark import compare_strategies, print_comparison_table
-        results = compare_strategies(
-            num_layers=8,
-            hidden_size=512,
-            batch_size=4,
-            sequence_length=256,
+        print("\n📊 Running Medical Imaging Benchmark Demo...")
+        from benchmark import compare_medical_strategies, print_medical_comparison
+        results = compare_medical_strategies(
+            architecture="unet",
+            volume_shape=volume_size,
+            batch_size=batch_size,
             iterations=5
         )
-        print_comparison_table(results)
+        print_medical_comparison(results)
         
     elif demo_type == 'optimal':
-        print("\nRunning Optimal Checkpoint Selection Demo...")
-        from optimal_checkpointing import demonstrate_optimal_checkpointing
-        demonstrate_optimal_checkpointing()
+        print("\n🎯 Running Optimal Checkpoint Selection for Medical Imaging...")
+        from optimal_checkpointing import demonstrate_medical_checkpointing
+        demonstrate_medical_checkpointing()
         
-    elif demo_type == 'architecture':
-        print("\nRunning Architecture-Specific Demo...")
-        from architecture_specific import demonstrate_architecture_specific
-        demonstrate_architecture_specific()
-        
-    elif demo_type == 'profiling':
-        print("\nRunning Memory Profiling Demo...")
-        from profiling_visualization import demonstrate_profiling
-        demonstrate_profiling()
+    elif demo_type == 'clinical':
+        print("\n🏥 Running Clinical Scenario Demonstrations...")
+        run_clinical_scenarios(device, batch_size)
         
     elif demo_type == 'all':
-        print("\nRunning ALL Demonstrations...")
+        print("\n🔬 Running ALL Medical Imaging Demonstrations...")
         from examples import run_all_examples
         run_all_examples()
 
 
-def run_example(example_num):
-    """Run specific example."""
+def run_medical_example(example_num):
+    """Run specific medical imaging example."""
     from examples import (
-        example_1_basic_checkpointing,
-        example_2_checkpointed_sequential,
-        example_3_selective_checkpointing,
-        example_4_optimal_checkpoint_selection,
-        example_5_architecture_specific,
-        example_6_memory_profiling,
-        example_7_gradient_accumulation,
-        example_8_mixed_precision
+        example_1_basic_3d_unet_checkpointing,
+        example_2_medical_sequential_checkpointing,
+        example_3_selective_layer_checkpointing,
+        example_4_optimal_checkpointing_strategy,
+        example_5_mixed_precision_checkpointing,
+        example_6_multi_gpu_checkpointing
     )
     
     examples = {
-        1: example_1_basic_checkpointing,
-        2: example_2_checkpointed_sequential,
-        3: example_3_selective_checkpointing,
-        4: example_4_optimal_checkpoint_selection,
-        5: example_5_architecture_specific,
-        6: example_6_memory_profiling,
-        7: example_7_gradient_accumulation,
-        8: example_8_mixed_precision
+        1: ("3D U-Net Brain MRI Segmentation", example_1_basic_3d_unet_checkpointing),
+        2: ("V-Net Cardiac Imaging", example_2_medical_sequential_checkpointing),
+        3: ("nnU-Net Selective Checkpointing", example_3_selective_layer_checkpointing),
+        4: ("Optimal GPU Memory Management", example_4_optimal_checkpointing_strategy),
+        5: ("Mixed Precision Brain Segmentation", example_5_mixed_precision_checkpointing),
+        6: ("Multi-GPU Large Cohort Training", example_6_multi_gpu_checkpointing)
     }
     
-    print(f"\nRunning Example {example_num}...")
-    examples[example_num]()
+    name, func = examples[example_num]
+    print(f"\n🔬 Running Example {example_num}: {name}...")
+    func()
 
 
-def run_full_benchmarks():
-    """Run comprehensive benchmarks."""
-    print("\nRunning Full Benchmark Suite...")
-    print("This may take several minutes...\n")
+def run_clinical_scenarios(device, batch_size):
+    """Run demonstrations of clinical imaging scenarios."""
+    print("\n" + "="*80)
+    print("Clinical Imaging Scenarios")
+    print("="*80)
     
-    from benchmark import compare_strategies, print_comparison_table
-    
-    configurations = [
-        ("Small Model", dict(num_layers=6, hidden_size=512, batch_size=8, sequence_length=256)),
-        ("Medium Model", dict(num_layers=12, hidden_size=768, batch_size=4, sequence_length=512)),
+    scenarios = [
+        {
+            'name': 'Brain MRI - Tumor Segmentation',
+            'volume_size': (128, 128, 128),
+            'description': 'T1-weighted MRI with gadolinium contrast',
+            'task': 'Segment tumor, edema, and necrotic tissue'
+        },
+        {
+            'name': 'Cardiac CT - Vessel Analysis',
+            'volume_size': (64, 256, 256),
+            'description': 'Contrast-enhanced cardiac CT',
+            'task': 'Segment coronary arteries and myocardium'
+        },
+        {
+            'name': 'Lung CT - COVID-19 Detection',
+            'volume_size': (32, 512, 512),
+            'description': 'High-resolution chest CT',
+            'task': 'Detect and quantify ground-glass opacities'
+        },
+        {
+            'name': 'Whole Brain - Parcellation',
+            'volume_size': (256, 256, 256),
+            'description': 'High-resolution structural MRI',
+            'task': 'Parcellate brain into 100+ anatomical regions'
+        }
     ]
     
-    # Add large model if enough GPU memory
-    if torch.cuda.is_available() and torch.cuda.get_device_properties(0).total_memory > 8e9:
+    for scenario in scenarios:
+        print(f"\n{'='*60}")
+        print(f"Scenario: {scenario['name']}")
+        print(f"Volume: {scenario['volume_size']}")
+        print(f"Description: {scenario['description']}")
+        print(f"Task: {scenario['task']}")
+        print(f"{'='*60}")
+        
+        # Calculate memory requirements
+        voxels = scenario['volume_size'][0] * scenario['volume_size'][1] * scenario['volume_size'][2]
+        memory_gb = (voxels * 4 * 32 * batch_size) / (1024**3)  # Rough estimate
+        
+        print(f"Memory estimate: {memory_gb:.2f} GB")
+        
+        if memory_gb > 8:
+            print("⚠️ Large memory requirement - Gradient checkpointing ESSENTIAL")
+            print("Recommended strategy: Full encoder checkpointing")
+        elif memory_gb > 4:
+            print("⚠️ Moderate memory requirement - Checkpointing recommended")
+            print("Recommended strategy: Selective checkpointing (bottleneck)")
+        else:
+            print("✅ Manageable memory requirement")
+            print("Recommended strategy: Optional checkpointing for larger batches")
+
+
+def run_full_medical_benchmarks(volume_size, batch_size):
+    """Run comprehensive medical imaging benchmarks."""
+    print("\n🔬 Running Full Medical Imaging Benchmark Suite...")
+    print("This may take several minutes...\n")
+    
+    from benchmark import compare_medical_strategies, print_medical_comparison
+    
+    configurations = [
+        ("Small ROI (32³)", (32, 32, 32), 4),
+        ("Standard Brain MRI (128³)", (128, 128, 128), 2),
+        ("High-res Brain (256x256x128)", (256, 256, 128), 1),
+    ]
+    
+    # Add large volume if enough GPU memory
+    if torch.cuda.is_available() and torch.cuda.get_device_properties(0).total_memory > 16e9:
         configurations.append(
-            ("Large Model", dict(num_layers=24, hidden_size=1024, batch_size=2, sequence_length=1024))
+            ("Whole-body CT (512x512x64)", (64, 512, 512), 1)
         )
     
     all_results = {}
-    for name, config in configurations:
-        print(f"\n{'='*60}")
+    for name, vol_shape, batch in configurations:
+        print(f"\n{'='*80}")
         print(f"Benchmarking: {name}")
-        print(f"{'='*60}")
+        print(f"Volume: {vol_shape}, Batch: {batch}")
+        print(f"{'='*80}")
         
-        results = compare_strategies(**config, iterations=10)
-        print_comparison_table(results)
-        all_results[name] = results
+        try:
+            results = compare_medical_strategies(
+                architecture="unet",
+                volume_shape=vol_shape,
+                batch_size=batch,
+                iterations=5
+            )
+            print_medical_comparison(results)
+            all_results[name] = results
+        except RuntimeError as e:
+            if "out of memory" in str(e).lower():
+                print(f"⚠️ Out of memory - This is where checkpointing is essential!")
+            else:
+                raise e
     
     # Summary
     print("\n" + "="*80)
-    print("BENCHMARK SUMMARY")
+    print("MEDICAL IMAGING BENCHMARK SUMMARY")
     print("="*80)
     
-    for model_name, results in all_results.items():
-        print(f"\n{model_name}:")
+    for volume_name, results in all_results.items():
+        print(f"\n{volume_name}:")
         baseline = results.get('standard')
         for strategy, result in results.items():
             if strategy != 'standard' and baseline:
                 mem_save = (1 - result.peak_memory_mb/baseline.peak_memory_mb) * 100
-                compute_over = (result.total_time_seconds/baseline.total_time_seconds - 1) * 100
-                print(f"  {result.strategy}: {mem_save:.1f}% memory saved, {compute_over:.1f}% compute overhead")
+                speed_ratio = result.voxels_per_second / baseline.voxels_per_second
+                print(f"  {result.strategy}: {mem_save:.1f}% memory saved, {speed_ratio:.2f}x speed")
 
 
-def show_interactive_menu():
-    """Show interactive menu for demonstrations."""
+def show_medical_menu(device, volume_size, batch_size):
+    """Show interactive menu for medical imaging demonstrations."""
     print("\n" + "="*60)
-    print("Interactive Menu")
+    print("🏥 Medical Imaging Interactive Menu")
     print("="*60)
     print("\nAvailable demonstrations:")
-    print("1. Basic Gradient Checkpointing")
-    print("2. Checkpointed Sequential Container")
-    print("3. Selective Layer Checkpointing")
-    print("4. Optimal Checkpoint Selection")
-    print("5. Architecture-Specific Strategies")
-    print("6. Memory Profiling and Analysis")
-    print("7. Gradient Accumulation")
-    print("8. Mixed Precision + Checkpointing")
-    print("9. Run Full Benchmark Suite")
-    print("10. Run All Examples")
+    print("1. 3D U-Net Brain MRI Segmentation")
+    print("2. V-Net Cardiac Imaging")
+    print("3. nnU-Net Selective Checkpointing")
+    print("4. Optimal GPU Memory Management")
+    print("5. Mixed Precision Brain Segmentation")
+    print("6. Multi-GPU Large Cohort Training")
+    print("7. Run Clinical Scenarios")
+    print("8. Run Full Medical Benchmark Suite")
+    print("9. Run All Medical Examples")
     print("0. Exit")
     
     while True:
         try:
-            choice = input("\nEnter your choice (0-10): ").strip()
+            choice = input("\nEnter your choice (0-9): ").strip()
             
             if choice == '0':
                 print("Exiting...")
                 break
-            elif choice in ['1', '2', '3', '4', '5', '6', '7', '8']:
-                run_example(int(choice))
+            elif choice in ['1', '2', '3', '4', '5', '6']:
+                run_medical_example(int(choice))
+            elif choice == '7':
+                run_clinical_scenarios(device, batch_size)
+            elif choice == '8':
+                run_full_medical_benchmarks(volume_size, batch_size)
             elif choice == '9':
-                run_full_benchmarks()
-            elif choice == '10':
                 from examples import run_all_examples
                 run_all_examples()
             else:
@@ -233,6 +319,52 @@ def show_interactive_menu():
         except Exception as e:
             print(f"Error: {e}")
             print("Please try again.")
+
+
+def print_medical_recommendations():
+    """Print recommendations for medical imaging use cases."""
+    print("\n" + "="*80)
+    print("📋 Gradient Checkpointing Recommendations for Medical Imaging")
+    print("="*80)
+    
+    recommendations = [
+        {
+            'gpu': 'RTX 3070/3080 (8-10GB)',
+            'max_volume': '128³ with batch=2',
+            'strategy': 'Selective checkpointing (encoder only)',
+            'use_cases': 'Brain MRI segmentation, small organ analysis'
+        },
+        {
+            'gpu': 'V100 (16GB)',
+            'max_volume': '256³ with batch=1 or 128³ with batch=4',
+            'strategy': 'Selective checkpointing (bottleneck)',
+            'use_cases': 'Standard clinical imaging, multi-modal fusion'
+        },
+        {
+            'gpu': 'RTX 3090/4090 (24GB)',
+            'max_volume': '256³ with batch=2',
+            'strategy': 'Optional checkpointing for larger batches',
+            'use_cases': 'High-resolution brain imaging, cardiac 4D flow'
+        },
+        {
+            'gpu': 'A100 (40-80GB)',
+            'max_volume': '512³ with batch=1 or 256³ with batch=4',
+            'strategy': 'Checkpointing for maximum batch size',
+            'use_cases': 'Whole-body imaging, large cohort studies'
+        }
+    ]
+    
+    for rec in recommendations:
+        print(f"\n{rec['gpu']}:")
+        print(f"  Max volume: {rec['max_volume']}")
+        print(f"  Strategy: {rec['strategy']}")
+        print(f"  Use cases: {rec['use_cases']}")
+    
+    print("\n💡 Key Insights:")
+    print("  • Checkpointing enables 2-4x larger volumes")
+    print("  • Memory savings: 40-60% typical, up to 80% with aggressive checkpointing")
+    print("  • Speed trade-off: 20-40% slower, acceptable for memory-constrained scenarios")
+    print("  • Mixed precision + checkpointing: Best combination for large volumes")
 
 
 if __name__ == "__main__":
