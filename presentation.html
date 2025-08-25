@@ -392,15 +392,15 @@
             </div>
 
             <div class="code-block">
-# Instead of storing all activations:
-x1 = layer1(x0)  # Stored
-x2 = layer2(x1)  # Stored
-x3 = layer3(x2)  # Stored
+# Standard PyTorch autograd stores all activations:
+x1 = layer1(x0)  # Stored by autograd for backprop
+x2 = layer2(x1)  # Stored by autograd for backprop
+x3 = layer3(x2)  # Stored by autograd for backprop
 
-# Checkpoint only layer2:
-x1 = layer1(x0)  # Not stored
-x2 = checkpoint(layer2, x1)  # Checkpoint
-x3 = layer3(x2)  # Not stored
+# With checkpointing, only some activations stored:
+x1 = layer1(x0)  # Discarded by checkpoint function
+x2 = checkpoint(layer2, x1)  # Input saved, output discarded
+x3 = layer3(x2)  # Discarded by checkpoint function
             </div>
         </div>
 
