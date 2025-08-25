@@ -479,7 +479,7 @@ x3 = layer3(x2)  # Not stored
                         <td>+33%</td>
                     </tr>
                     <tr>
-                        <td>Theoretical optimal (√L)</td>
+                        <td>√L evenly-spaced checkpoints</td>
                         <td>1024</td>
                         <td>50%</td>
                         <td>+41%</td>
@@ -489,6 +489,7 @@ x3 = layer3(x2)  # Not stored
 
             <div class="success-box">
                 <p><strong>Key Result:</strong> Theoretical optimal checkpointing (√L strategy) achieves 50% memory reduction with only 41% training time overhead.</p>
+                <p style="font-size: 0.9em; margin-top: 10px;"><em>Note: The √L strategy places checkpoints at √L evenly-spaced intervals among L layers, which is proven to minimize recomputation time for a given memory budget.</em></p>
             </div>
         </div>
 
@@ -545,7 +546,7 @@ x3 = layer3(x2)  # Not stored
                     <h4>Best Balance</h4>
                     <div class="metric">
                         <span class="metric-label">Strategy:</span>
-                        <span class="metric-value">Theoretical optimal (√L)</span>
+                        <span class="metric-value">√L evenly-spaced</span>
                     </div>
                     <div class="metric">
                         <span class="metric-label">Memory Saved:</span>
