@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gradient Checkpointing: Memory-Compute Trade-offs</title>
+    <title>Gradient Checkpointing: Memory-Speed Trade-offs</title>
     <style>
         * {
             margin: 0;
@@ -357,7 +357,7 @@
 
             <div class="key-point">
                 <h3>💡 Key Insight for Brain MRI:</h3>
-                <p>We can trade compute for memory by recomputing 3D convolution activations during backpropagation instead of storing them!</p>
+                <p>We can trade computation time for memory by recomputing 3D convolution activations during backpropagation instead of storing them!</p>
             </div>
         </div>
 
@@ -448,7 +448,7 @@ x3 = layer3(x2)  # Not stored
                         <th>Strategy</th>
                         <th>Peak Memory (MB)</th>
                         <th>Memory Savings</th>
-                        <th>Compute Overhead</th>
+                        <th>Training Time Overhead</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -486,7 +486,7 @@ x3 = layer3(x2)  # Not stored
             </table>
 
             <div class="success-box">
-                <p><strong>✨ Key Result:</strong> Optimal checkpointing achieves 50% memory reduction with only 41% compute overhead!</p>
+                <p><strong>✨ Key Result:</strong> Optimal checkpointing achieves 50% memory reduction with only 41% training time overhead!</p>
             </div>
         </div>
 
@@ -494,7 +494,7 @@ x3 = layer3(x2)  # Not stored
         <div class="slide">
             <h1>Performance Visualization</h1>
             
-            <h2>Memory-Compute Trade-off</h2>
+            <h2>Memory-Speed Trade-off</h2>
             
             <div class="chart-container">
                 <div class="bar-chart">
@@ -534,7 +534,7 @@ x3 = layer3(x2)  # Not stored
                         <span class="metric-value">75%</span>
                     </div>
                     <div class="metric">
-                        <span class="metric-label">Compute Cost:</span>
+                        <span class="metric-label">Training Time:</span>
                         <span class="metric-value">2x slower</span>
                     </div>
                 </div>
@@ -550,7 +550,7 @@ x3 = layer3(x2)  # Not stored
                         <span class="metric-value">50%</span>
                     </div>
                     <div class="metric">
-                        <span class="metric-label">Compute Cost:</span>
+                        <span class="metric-label">Training Time:</span>
                         <span class="metric-value">1.41x slower</span>
                     </div>
                 </div>
@@ -721,7 +721,7 @@ dp[i][k] = min memory to process layers 0..i with k checkpoints
 
 For each layer i and checkpoint count k:
   Option 1: Don't checkpoint → memory += activation_size
-  Option 2: Checkpoint → memory unchanged, compute += forward_cost
+  Option 2: Checkpoint → memory unchanged, time += recompute_cost
                 </div>
             </div>
 
@@ -732,7 +732,7 @@ For each layer i and checkpoint count k:
                     <tr>
                         <th>Memory Budget</th>
                         <th>Checkpoints Selected</th>
-                        <th>Compute Overhead</th>
+                        <th>Training Time Overhead</th>
                         <th>Efficiency Score</th>
                     </tr>
                 </thead>
@@ -865,7 +865,7 @@ with torch.cuda.amp.autocast():  # Mixed precision for 3D volumes
             <ul>
                 <li>Brain MRI inference/evaluation (no gradients)</li>
                 <li>Small brain ROIs (<64³ voxels)</li>
-                <li>Compute is already the bottleneck</li>
+                <li>Training speed is already the bottleneck</li>
                 <li>Real-time brain imaging applications</li>
             </ul>
 
