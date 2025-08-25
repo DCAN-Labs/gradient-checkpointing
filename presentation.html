@@ -349,7 +349,7 @@
                 <h3>The Problem:</h3>
                 <ul>
                     <li>3D brain MRI analysis requires large volumetric models</li>
-                    <li>Memory usage grows with model depth and 3D volume size: O(n)</li>
+                    <li>Memory usage grows linearly with model depth and volume size</li>
                     <li>GPUs have limited memory (typically 16-80GB)</li>
                     <li>Brain MRI volumes can be 256³ voxels or larger</li>
                 </ul>
@@ -372,8 +372,8 @@
                         <li>✅ Store all activations</li>
                         <li>✅ Fast backward pass</li>
                         <li>❌ High memory usage</li>
-                        <li>Memory: O(n)</li>
-                        <li>Compute: O(n)</li>
+                        <li>Memory: O(L) where L = layers</li>
+                        <li>Compute: O(L) where L = layers</li>
                     </ul>
                 </div>
                 
@@ -383,8 +383,8 @@
                         <li>✅ Store only checkpoints</li>
                         <li>⚠️ Recompute activations</li>
                         <li>✅ Low memory usage</li>
-                        <li>Memory: O(√n)</li>
-                        <li>Compute: O(n√n)</li>
+                        <li>Memory: O(√L) where L = layers</li>
+                        <li>Compute: O(L√L) where L = layers</li>
                     </ul>
                 </div>
             </div>
@@ -477,7 +477,7 @@ x3 = layer3(x2)  # Not stored
                         <td>+33%</td>
                     </tr>
                     <tr>
-                        <td>Optimal (√n)</td>
+                        <td>Optimal (√L checkpoints)</td>
                         <td>1024</td>
                         <td>50%</td>
                         <td>+41%</td>
@@ -543,7 +543,7 @@ x3 = layer3(x2)  # Not stored
                     <h4>Best Balance</h4>
                     <div class="metric">
                         <span class="metric-label">Strategy:</span>
-                        <span class="metric-value">Optimal (√n)</span>
+                        <span class="metric-value">Optimal (√L checkpoints)</span>
                     </div>
                     <div class="metric">
                         <span class="metric-label">Memory Saved:</span>
