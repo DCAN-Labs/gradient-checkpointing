@@ -489,7 +489,7 @@ x3 = layer3(x2)  # Not stored
 
             <div class="success-box">
                 <p><strong>Key Result:</strong> Theoretical optimal checkpointing (√L strategy) achieves 50% memory reduction with only 41% training time overhead.</p>
-                <p style="font-size: 0.9em; margin-top: 10px;"><em>Note: The √L strategy places checkpoints at √L evenly-spaced intervals among L layers, which is theoretically optimal when all layers have equal cost and memory allows exactly √L checkpoints.</em></p>
+                <p style="font-size: 0.9em; margin-top: 10px;"><em>Note: The √L strategy places √L evenly-spaced checkpoints among L layers. This minimizes total recomputation time while using Θ(√L) memory instead of Θ(L). Specifically, it achieves the best possible time complexity (Θ(L√L)) for any strategy that reduces memory from Θ(L) to Θ(√L).</em></p>
             </div>
         </div>
 
