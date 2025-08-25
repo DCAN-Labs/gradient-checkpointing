@@ -489,7 +489,7 @@ x3 = layer3(x2)  # Not stored
 
             <div class="success-box">
                 <p><strong>Key Result:</strong> Theoretical optimal checkpointing (√L strategy) achieves 50% memory reduction with only 41% training time overhead.</p>
-                <p style="font-size: 0.9em; margin-top: 10px;"><em>Note: The √L strategy places checkpoints at √L evenly-spaced intervals among L layers, which is proven to minimize recomputation time for a given memory budget.</em></p>
+                <p style="font-size: 0.9em; margin-top: 10px;"><em>Note: The √L strategy places checkpoints at √L evenly-spaced intervals among L layers, which is theoretically optimal when all layers have equal cost and memory allows exactly √L checkpoints.</em></p>
             </div>
         </div>
 
@@ -714,11 +714,18 @@ x3 = layer3(x2)  # Not stored
         <div class="slide">
             <h1>Dynamic Programming Optimization</h1>
             
-            <h2>Finding Theoretically Optimal Checkpoint Locations</h2>
+            <h2>Finding Optimal Checkpoints for Real-World Constraints</h2>
             
             <div class="highlight-box">
+                <h3>Why Dynamic Programming When √L is Optimal?</h3>
+                <p>The √L strategy assumes uniform layer costs and specific memory budgets. In practice, we need DP because:</p>
+                <ul style="margin: 10px 0;">
+                    <li>Layers have different memory costs (3D convolutions vary in size)</li>
+                    <li>Memory budget may not align with √L checkpoints</li>
+                    <li>Some layers may be more expensive to recompute than others</li>
+                </ul>
                 <h3>Algorithm Overview</h3>
-                <p>Given a memory budget M and L layers, find checkpoint locations that minimize recomputation time. The √L strategy is theoretically optimal for the memory-time trade-off:</p>
+                <p>Given a specific memory budget M and L layers with varying costs:</p>
                 <div class="code-block">
 dp[i][k] = min memory to process layers 0..i with k checkpoints
 
@@ -762,7 +769,7 @@ For each layer i and checkpoint count k:
             </table>
 
             <div class="success-box">
-                <p><strong>Key Finding:</strong> DP algorithm finds 23% better placements than uniform spacing.</p>
+                <p><strong>Key Finding:</strong> DP algorithm finds 23% better placements than uniform √L spacing when layers have non-uniform costs.</p>
             </div>
         </div>
 
