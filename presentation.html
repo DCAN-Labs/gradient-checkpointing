@@ -339,7 +339,7 @@
             <h1>Gradient Checkpointing</h1>
             <p>Memory Optimization for 3D Brain MRI Analysis</p>
             <p class="subtitle">Enabling Large-Scale Medical Imaging with Deep Learning</p>
-            <p class="subtitle" style="margin-top: 60px;">🧠 PyTorch Implementation for Brain MRI</p>
+            <p class="subtitle" style="margin-top: 60px;">PyTorch Implementation for Brain MRI</p>
         </div>
 
         <!-- Slide 2: Problem Statement -->
@@ -358,8 +358,8 @@
             </div>
 
             <div class="key-point">
-                <h3>💡 Key Insight for Brain MRI:</h3>
-                <p>We can trade computation time for memory by recomputing 3D convolution activations during backpropagation instead of storing them!</p>
+                <h3>Key Insight for Brain MRI:</h3>
+                <p>We can trade computation time for memory by recomputing 3D convolution activations during backpropagation instead of storing them.</p>
             </div>
         </div>
 
@@ -371,9 +371,9 @@
                 <div class="comparison-card">
                     <h4>Standard Backpropagation</h4>
                     <ul>
-                        <li>✅ Store all activations</li>
-                        <li>✅ Fast backward pass</li>
-                        <li>❌ High memory usage</li>
+                        <li>Store all activations</li>
+                        <li>Fast backward pass</li>
+                        <li>High memory usage</li>
                         <li>Memory: O(L) where L = layers</li>
                         <li>Compute: O(L) where L = layers</li>
                     </ul>
@@ -382,9 +382,9 @@
                 <div class="comparison-card">
                     <h4>With Checkpointing</h4>
                     <ul>
-                        <li>✅ Store only checkpoints</li>
-                        <li>⚠️ Recompute activations</li>
-                        <li>✅ Low memory usage</li>
+                        <li>Store only checkpoints</li>
+                        <li>Recompute activations</li>
+                        <li>Low memory usage</li>
                         <li>Memory: O(√L) where L = layers</li>
                         <li>Compute: O(L√L) where L = layers</li>
                     </ul>
@@ -408,7 +408,7 @@ x3 = layer3(x2)  # Not stored
         <div class="slide">
             <h1>Implementation Components</h1>
             
-            <h2>📦 What We Built</h2>
+            <h2>Implementation Components</h2>
             
             <div class="highlight-box">
                 <h3>1. Core Checkpointing Engine</h3>
@@ -488,7 +488,7 @@ x3 = layer3(x2)  # Not stored
             </table>
 
             <div class="success-box">
-                <p><strong>✨ Key Result:</strong> Optimal checkpointing achieves 50% memory reduction with only 41% training time overhead!</p>
+                <p><strong>Key Result:</strong> Optimal checkpointing achieves 50% memory reduction with only 41% training time overhead.</p>
             </div>
         </div>
 
@@ -608,15 +608,15 @@ x3 = layer3(x2)  # Not stored
             </table>
 
             <div class="key-point">
-                <h3>📈 Brain MRI Scaling Insight:</h3>
-                <p>Memory savings increase with volume size! Larger brain volumes benefit more from checkpointing.</p>
+                <h3>Brain MRI Scaling Insight:</h3>
+                <p>Memory savings increase with volume size. Larger brain volumes benefit more from checkpointing.</p>
             </div>
 
             <h3>Enabling Factors</h3>
             <ul>
-                <li>🧠 Process 4x larger brain volumes on same hardware</li>
-                <li>📊 Increase brain MRI batch size by 2-3x</li>
-                <li>🔧 Combine with mixed precision for 8x improvement in brain imaging</li>
+                <li>Process 4x larger brain volumes on same hardware</li>
+                <li>Increase brain MRI batch size by 2-3x</li>
+                <li>Combine with mixed precision for 8x improvement in brain imaging</li>
             </ul>
         </div>
 
@@ -626,7 +626,7 @@ x3 = layer3(x2)  # Not stored
             
             <div class="comparison-grid">
                 <div class="comparison-card">
-                    <h4>🧠 3D U-Net Brain Segmentation</h4>
+                    <h4>3D U-Net Brain Segmentation</h4>
                     <div class="metric">
                         <span class="metric-label">Strategy:</span>
                         <span class="metric-value">Encoder-focused</span>
@@ -646,7 +646,7 @@ x3 = layer3(x2)  # Not stored
                 </div>
                 
                 <div class="comparison-card">
-                    <h4>🧠 Brain Parcellation Network</h4>
+                    <h4>Brain Parcellation Network</h4>
                     <div class="metric">
                         <span class="metric-label">Strategy:</span>
                         <span class="metric-value">Layer-wise</span>
@@ -668,7 +668,7 @@ x3 = layer3(x2)  # Not stored
 
             <div class="comparison-grid">
                 <div class="comparison-card">
-                    <h4>🔬 Brain Tumor Detection</h4>
+                    <h4>Brain Tumor Detection</h4>
                     <div class="metric">
                         <span class="metric-label">Strategy:</span>
                         <span class="metric-value">Selective layers</span>
@@ -688,7 +688,7 @@ x3 = layer3(x2)  # Not stored
                 </div>
                 
                 <div class="comparison-card">
-                    <h4>🧠 Whole-Brain Analysis</h4>
+                    <h4>Whole-Brain Analysis</h4>
                     <div class="metric">
                         <span class="metric-label">Strategy:</span>
                         <span class="metric-value">Hierarchical</span>
@@ -761,7 +761,7 @@ For each layer i and checkpoint count k:
             </table>
 
             <div class="success-box">
-                <p><strong>🎯 Key Finding:</strong> DP algorithm finds 23% better placements than uniform spacing!</p>
+                <p><strong>Key Finding:</strong> DP algorithm finds 23% better placements than uniform spacing.</p>
             </div>
         </div>
 
@@ -805,7 +805,7 @@ with torch.cuda.amp.autocast():  # Mixed precision for 3D volumes
         <div class="slide">
             <h1>Real-World Applications</h1>
             
-            <h2>🧠 Brain MRI Analysis Applications</h2>
+            <h2>Brain MRI Analysis Applications</h2>
             
             <div class="comparison-grid">
                 <div class="comparison-card">
@@ -855,7 +855,7 @@ with torch.cuda.amp.autocast():  # Mixed precision for 3D volumes
         <div class="slide">
             <h1>Best Practices & Guidelines</h1>
             
-            <h2>✅ When to Use for Brain MRI</h2>
+            <h2>When to Use for Brain MRI</h2>
             <ul>
                 <li>Processing brain volumes >128³ voxels</li>
                 <li>GPU memory is the bottleneck for 3D models</li>
@@ -863,7 +863,7 @@ with torch.cuda.amp.autocast():  # Mixed precision for 3D volumes
                 <li>Training brain models on consumer GPUs</li>
             </ul>
 
-            <h2>❌ When to Avoid for Brain MRI</h2>
+            <h2>When to Avoid for Brain MRI</h2>
             <ul>
                 <li>Brain MRI inference/evaluation (no gradients)</li>
                 <li>Small brain ROIs (<64³ voxels)</li>
@@ -871,7 +871,7 @@ with torch.cuda.amp.autocast():  # Mixed precision for 3D volumes
                 <li>Real-time brain imaging applications</li>
             </ul>
 
-            <h2>🎯 Optimization Strategy</h2>
+            <h2>Optimization Strategy</h2>
             <div class="key-point">
                 <ol>
                     <li><strong>Profile first:</strong> Identify memory bottlenecks</li>
@@ -915,7 +915,7 @@ demonstrate_medical_checkpointing()  # Brain MRI specific optimization
             </div>
 
             <div class="success-box">
-                <p><strong>🚀 Ready to use:</strong> Full implementation available with examples and benchmarks!</p>
+                <p><strong>Ready to use:</strong> Full implementation available with examples and benchmarks.</p>
             </div>
         </div>
 
@@ -946,7 +946,7 @@ demonstrate_medical_checkpointing()  # Brain MRI specific optimization
             </div>
 
             <div class="key-point">
-                <p><strong>Impact:</strong> Enabling large-scale brain MRI analysis that wouldn't fit in GPU memory otherwise!</p>
+                <p><strong>Impact:</strong> Enabling large-scale brain MRI analysis that wouldn't fit in GPU memory otherwise.</p>
             </div>
         </div>
 
@@ -957,10 +957,10 @@ demonstrate_medical_checkpointing()  # Brain MRI specific optimization
             <div style="text-align: left; max-width: 800px; margin: 0 auto;">
                 <h2 style="color: #667eea;">Key Achievements</h2>
                 <ul style="font-size: 1.3em; line-height: 2;">
-                    <li>✅ 50-87% memory reduction achieved</li>
-                    <li>✅ Optimal checkpoint selection via DP</li>
-                    <li>✅ Architecture-specific optimizations</li>
-                    <li>✅ Production-ready implementation</li>
+                    <li>50-87% memory reduction achieved</li>
+                    <li>Optimal checkpoint selection via DP</li>
+                    <li>Architecture-specific optimizations</li>
+                    <li>Production-ready implementation</li>
                 </ul>
 
                 <h2 style="color: #667eea; margin-top: 40px;">Impact</h2>
@@ -968,7 +968,7 @@ demonstrate_medical_checkpointing()  # Brain MRI specific optimization
             </div>
 
             <p class="subtitle" style="margin-top: 60px;">
-                <strong>🎯 Memory is no longer the limit!</strong>
+                <strong>Memory is no longer the limit.</strong>
             </p>
             
             <p class="subtitle">
