@@ -335,9 +335,9 @@
         <!-- Slide 1: Title -->
         <div class="slide active title-slide">
             <h1>Gradient Checkpointing</h1>
-            <p>A Deep Dive into Memory-Compute Trade-offs</p>
-            <p class="subtitle">Enabling Large Model Training on Limited Hardware</p>
-            <p class="subtitle" style="margin-top: 60px;">🚀 PyTorch Implementation & Analysis</p>
+            <p>Memory Optimization for 3D Brain MRI Analysis</p>
+            <p class="subtitle">Enabling Large-Scale Medical Imaging with Deep Learning</p>
+            <p class="subtitle" style="margin-top: 60px;">🧠 PyTorch Implementation for Brain MRI</p>
         </div>
 
         <!-- Slide 2: Problem Statement -->
@@ -348,16 +348,16 @@
             <div class="highlight-box">
                 <h3>The Problem:</h3>
                 <ul>
-                    <li>Training deep neural networks requires storing all intermediate activations</li>
-                    <li>Memory usage grows linearly with model depth: O(n)</li>
+                    <li>3D brain MRI analysis requires large volumetric models</li>
+                    <li>Memory usage grows with model depth and 3D volume size: O(n)</li>
                     <li>GPUs have limited memory (typically 16-80GB)</li>
-                    <li>Large models like GPT-4 have billions of parameters</li>
+                    <li>Brain MRI volumes can be 256³ voxels or larger</li>
                 </ul>
             </div>
 
             <div class="key-point">
-                <h3>💡 Key Insight:</h3>
-                <p>We can trade compute for memory by recomputing activations during backpropagation instead of storing them!</p>
+                <h3>💡 Key Insight for Brain MRI:</h3>
+                <p>We can trade compute for memory by recomputing 3D convolution activations during backpropagation instead of storing them!</p>
             </div>
         </div>
 
@@ -427,20 +427,20 @@ x3 = layer3(x2)  # Not stored
             </div>
 
             <div class="highlight-box">
-                <h3>3. Architecture-Specific Strategies</h3>
+                <h3>3. Brain MRI Architecture Strategies</h3>
                 <ul>
-                    <li>ResNet: Handle skip connections</li>
-                    <li>Transformer: Layer-wise checkpointing</li>
-                    <li>U-Net: Encoder-decoder optimization</li>
+                    <li>3D U-Net: Encoder-decoder optimization for brain segmentation</li>
+                    <li>V-Net: Skip connection handling for brain parcellation</li>
+                    <li>Brain CNNs: Layer-wise checkpointing for tumor detection</li>
                 </ul>
             </div>
         </div>
 
         <!-- Slide 5: Benchmark Results -->
         <div class="slide">
-            <h1>Benchmark Results: Memory Savings</h1>
+            <h1>Brain MRI Benchmark Results: Memory Savings</h1>
             
-            <h2>Test Configuration: 12-Layer Transformer</h2>
+            <h2>Test Configuration: 3D U-Net for Brain Segmentation (128³ volumes)</h2>
             
             <table>
                 <thead>
@@ -559,15 +559,15 @@ x3 = layer3(x2)  # Not stored
 
         <!-- Slide 7: Model Scaling Results -->
         <div class="slide">
-            <h1>Scaling to Larger Models</h1>
+            <h1>Scaling to Larger Brain MRI Volumes</h1>
             
-            <h2>Memory Savings by Model Size</h2>
+            <h2>Memory Savings by Volume Size</h2>
             
             <table>
                 <thead>
                     <tr>
-                        <th>Model Size</th>
-                        <th>Layers</th>
+                        <th>Volume Size</th>
+                        <th>Use Case</th>
                         <th>Standard Memory</th>
                         <th>With Checkpointing</th>
                         <th>Savings</th>
@@ -575,29 +575,29 @@ x3 = layer3(x2)  # Not stored
                 </thead>
                 <tbody>
                     <tr>
-                        <td>Small</td>
-                        <td>6</td>
+                        <td>64³ voxels</td>
+                        <td>Brain ROI segmentation</td>
                         <td>512 MB</td>
                         <td>256 MB</td>
                         <td>50%</td>
                     </tr>
                     <tr>
-                        <td>Medium</td>
-                        <td>12</td>
+                        <td>128³ voxels</td>
+                        <td>Standard brain MRI</td>
                         <td>2,048 MB</td>
                         <td>768 MB</td>
                         <td>62%</td>
                     </tr>
                     <tr>
-                        <td>Large</td>
-                        <td>24</td>
+                        <td>256³ voxels</td>
+                        <td>High-res brain parcellation</td>
                         <td>8,192 MB</td>
                         <td>2,048 MB</td>
                         <td>75%</td>
                     </tr>
                     <tr>
-                        <td>XLarge</td>
-                        <td>48</td>
+                        <td>512³ voxels</td>
+                        <td>Whole-brain ultra-high-res</td>
                         <td>32,768 MB</td>
                         <td>4,096 MB</td>
                         <td>87%</td>
@@ -606,15 +606,15 @@ x3 = layer3(x2)  # Not stored
             </table>
 
             <div class="key-point">
-                <h3>📈 Scaling Insight:</h3>
-                <p>Memory savings increase with model size! Larger models benefit more from checkpointing.</p>
+                <h3>📈 Brain MRI Scaling Insight:</h3>
+                <p>Memory savings increase with volume size! Larger brain volumes benefit more from checkpointing.</p>
             </div>
 
             <h3>Enabling Factors</h3>
             <ul>
-                <li>🎯 Train 4x larger models on same hardware</li>
-                <li>📊 Increase batch size by 2-3x</li>
-                <li>🔧 Combine with mixed precision for 8x improvement</li>
+                <li>🧠 Process 4x larger brain volumes on same hardware</li>
+                <li>📊 Increase brain MRI batch size by 2-3x</li>
+                <li>🔧 Combine with mixed precision for 8x improvement in brain imaging</li>
             </ul>
         </div>
 
@@ -624,14 +624,14 @@ x3 = layer3(x2)  # Not stored
             
             <div class="comparison-grid">
                 <div class="comparison-card">
-                    <h4>🏗️ ResNet-50</h4>
+                    <h4>🧠 3D U-Net Brain Segmentation</h4>
                     <div class="metric">
                         <span class="metric-label">Strategy:</span>
-                        <span class="metric-value">Stage-wise</span>
+                        <span class="metric-value">Encoder-focused</span>
                     </div>
                     <div class="metric">
                         <span class="metric-label">Checkpoints:</span>
-                        <span class="metric-value">Stages 2,3</span>
+                        <span class="metric-value">Encoder stages</span>
                     </div>
                     <div class="metric">
                         <span class="metric-label">Memory Saved:</span>
@@ -639,19 +639,19 @@ x3 = layer3(x2)  # Not stored
                     </div>
                     <div class="metric">
                         <span class="metric-label">Special:</span>
-                        <span class="metric-value">Skip connections handled</span>
+                        <span class="metric-value">3D skip connections optimized</span>
                     </div>
                 </div>
                 
                 <div class="comparison-card">
-                    <h4>🤖 BERT-Base</h4>
+                    <h4>🧠 Brain Parcellation Network</h4>
                     <div class="metric">
                         <span class="metric-label">Strategy:</span>
                         <span class="metric-value">Layer-wise</span>
                     </div>
                     <div class="metric">
                         <span class="metric-label">Checkpoints:</span>
-                        <span class="metric-value">Every 2 layers</span>
+                        <span class="metric-value">Every 2 blocks</span>
                     </div>
                     <div class="metric">
                         <span class="metric-label">Memory Saved:</span>
@@ -659,21 +659,21 @@ x3 = layer3(x2)  # Not stored
                     </div>
                     <div class="metric">
                         <span class="metric-label">Special:</span>
-                        <span class="metric-value">Attention optimized</span>
+                        <span class="metric-value">3D convolutions optimized</span>
                     </div>
                 </div>
             </div>
 
             <div class="comparison-grid">
                 <div class="comparison-card">
-                    <h4>🔬 U-Net</h4>
+                    <h4>🔬 Brain Tumor Detection</h4>
                     <div class="metric">
                         <span class="metric-label">Strategy:</span>
-                        <span class="metric-value">Encoder-only</span>
+                        <span class="metric-value">Selective layers</span>
                     </div>
                     <div class="metric">
                         <span class="metric-label">Checkpoints:</span>
-                        <span class="metric-value">Encoder blocks</span>
+                        <span class="metric-value">Bottleneck layers</span>
                     </div>
                     <div class="metric">
                         <span class="metric-label">Memory Saved:</span>
@@ -681,19 +681,19 @@ x3 = layer3(x2)  # Not stored
                     </div>
                     <div class="metric">
                         <span class="metric-label">Special:</span>
-                        <span class="metric-value">Skip connections preserved</span>
+                        <span class="metric-value">Multi-modal MRI fusion</span>
                     </div>
                 </div>
                 
                 <div class="comparison-card">
-                    <h4>🌟 Vision Transformer</h4>
+                    <h4>🧠 Whole-Brain Analysis</h4>
                     <div class="metric">
                         <span class="metric-label">Strategy:</span>
-                        <span class="metric-value">Periodic</span>
+                        <span class="metric-value">Hierarchical</span>
                     </div>
                     <div class="metric">
                         <span class="metric-label">Checkpoints:</span>
-                        <span class="metric-value">Every 3 blocks</span>
+                        <span class="metric-value">Multi-scale blocks</span>
                     </div>
                     <div class="metric">
                         <span class="metric-label">Memory Saved:</span>
@@ -701,7 +701,7 @@ x3 = layer3(x2)  # Not stored
                     </div>
                     <div class="metric">
                         <span class="metric-label">Special:</span>
-                        <span class="metric-value">Patch embeddings cached</span>
+                        <span class="metric-value">3D patch processing optimized</span>
                     </div>
                 </div>
             </div>
@@ -725,7 +725,7 @@ For each layer i and checkpoint count k:
                 </div>
             </div>
 
-            <h3>Optimization Results (16-layer model)</h3>
+            <h3>Optimization Results (3D U-Net for brain MRI)</h3>
             
             <table>
                 <thead>
@@ -788,11 +788,11 @@ For each layer i and checkpoint count k:
             </div>
 
             <div class="code-block">
-# Combined approach example
-with torch.cuda.amp.autocast():  # Mixed precision
-    for micro_batch in accumulation_steps:
-        output = checkpoint(model, input)  # Checkpointing
-        loss = criterion(output, target) / accumulation_steps
+# Brain MRI processing example
+with torch.cuda.amp.autocast():  # Mixed precision for 3D volumes
+    for brain_volume in accumulation_steps:
+        output = checkpoint(brain_unet, brain_volume)  # Checkpointing 3D U-Net
+        loss = dice_loss(output, brain_mask) / accumulation_steps
         scaler.scale(loss).backward()
     
     scaler.step(optimizer)  # Single update
@@ -803,48 +803,48 @@ with torch.cuda.amp.autocast():  # Mixed precision
         <div class="slide">
             <h1>Real-World Applications</h1>
             
-            <h2>🌍 Where Gradient Checkpointing Makes a Difference</h2>
+            <h2>🧠 Brain MRI Analysis Applications</h2>
             
             <div class="comparison-grid">
                 <div class="comparison-card">
-                    <h4>GPT-3 Training</h4>
+                    <h4>Brain Tumor Segmentation</h4>
                     <ul>
-                        <li>175B parameters</li>
-                        <li>96 layers</li>
-                        <li>Without CP: ~800GB memory</li>
-                        <li>With CP: ~200GB memory</li>
-                        <li>Enables training on 8xA100</li>
+                        <li>Multi-modal MRI (T1, T2, FLAIR)</li>
+                        <li>Volume: 155×240×240 voxels</li>
+                        <li>Without CP: ~12GB memory</li>
+                        <li>With CP: ~3GB memory</li>
+                        <li>Enables training on RTX 3090</li>
                     </ul>
                 </div>
                 
                 <div class="comparison-card">
-                    <h4>DALL-E 2</h4>
+                    <h4>Whole-Brain Parcellation</h4>
                     <ul>
-                        <li>3.5B parameters</li>
-                        <li>Image generation</li>
-                        <li>High-res activations</li>
-                        <li>60% memory reduction</li>
-                        <li>2x larger batch size</li>
+                        <li>100+ anatomical regions</li>
+                        <li>High-resolution volumes</li>
+                        <li>Volume: 256³ voxels</li>
+                        <li>70% memory reduction</li>
+                        <li>2x larger brain cohorts</li>
                     </ul>
                 </div>
             </div>
 
             <h3>Industry Adoption</h3>
             <div class="progress-bar">
+                <div class="progress-fill" style="width: 90%;">
+                    90% of 3D Brain MRI models use checkpointing
+                </div>
+            </div>
+            
+            <div class="progress-bar">
                 <div class="progress-fill" style="width: 85%;">
-                    85% of LLMs use checkpointing
+                    85% of Medical Imaging U-Nets
                 </div>
             </div>
             
             <div class="progress-bar">
-                <div class="progress-fill" style="width: 70%;">
-                    70% of Vision Transformers
-                </div>
-            </div>
-            
-            <div class="progress-bar">
-                <div class="progress-fill" style="width: 60%;">
-                    60% of Diffusion Models
+                <div class="progress-fill" style="width: 75%;">
+                    75% of Brain Parcellation Networks
                 </div>
             </div>
         </div>
@@ -853,20 +853,20 @@ with torch.cuda.amp.autocast():  # Mixed precision
         <div class="slide">
             <h1>Best Practices & Guidelines</h1>
             
-            <h2>✅ When to Use Gradient Checkpointing</h2>
+            <h2>✅ When to Use for Brain MRI</h2>
             <ul>
-                <li>Training models with >1B parameters</li>
-                <li>GPU memory is the bottleneck</li>
-                <li>Need to increase batch size</li>
-                <li>Training on consumer GPUs</li>
+                <li>Processing brain volumes >128³ voxels</li>
+                <li>GPU memory is the bottleneck for 3D models</li>
+                <li>Need to increase brain MRI batch size</li>
+                <li>Training brain models on consumer GPUs</li>
             </ul>
 
-            <h2>❌ When to Avoid</h2>
+            <h2>❌ When to Avoid for Brain MRI</h2>
             <ul>
-                <li>Inference/evaluation (no gradients)</li>
-                <li>Small models (<100M parameters)</li>
+                <li>Brain MRI inference/evaluation (no gradients)</li>
+                <li>Small brain ROIs (<64³ voxels)</li>
                 <li>Compute is already the bottleneck</li>
-                <li>Real-time applications</li>
+                <li>Real-time brain imaging applications</li>
             </ul>
 
             <h2>🎯 Optimization Strategy</h2>
@@ -888,30 +888,28 @@ with torch.cuda.amp.autocast():  # Mixed precision
             <h2>Quick Start Code</h2>
             
             <div class="code-block">
-# Basic usage
+# Brain MRI 3D U-Net usage
 from gradient_checkpointing import checkpoint
 
-class Model(nn.Module):
-    def forward(self, x):
-        x = self.layer1(x)
-        x = checkpoint(self.layer2, x)  # Checkpoint this layer
-        x = self.layer3(x)
+class BrainUNet(nn.Module):
+    def forward(self, brain_volume):
+        x = self.encoder1(brain_volume)
+        x = checkpoint(self.encoder2, x)  # Checkpoint 3D encoder
+        x = self.decoder(x)
         return x
 
-# Automatic checkpointing
-from gradient_checkpointing import CheckpointedSequential
+# Automatic brain MRI checkpointing
+from gradient_checkpointing import CheckpointedMedicalSequential
 
-model = CheckpointedSequential(
-    *[TransformerLayer() for _ in range(12)],
-    checkpoint_segments=3  # 3 checkpoint segments
+brain_model = CheckpointedMedicalSequential(
+    *[BrainConv3D() for _ in range(8)],
+    checkpoint_segments=2  # 2 checkpoint segments for brain volumes
 )
 
-# Optimal checkpoint selection
-from optimal_checkpointing import OptimalCheckpointer
+# Optimal brain MRI checkpoint selection
+from optimal_checkpointing import demonstrate_medical_checkpointing
 
-optimizer = OptimalCheckpointer(layer_profiles)
-plan = optimizer.find_optimal_checkpoints(memory_budget=1000)
-print(f"Checkpoint layers: {plan.checkpoint_layers}")
+demonstrate_medical_checkpointing()  # Brain MRI specific optimization
             </div>
 
             <div class="success-box">
@@ -946,7 +944,7 @@ print(f"Checkpoint layers: {plan.checkpoint_layers}")
             </div>
 
             <div class="key-point">
-                <p><strong>Impact:</strong> Enabling the next generation of AI models that wouldn't fit in memory otherwise!</p>
+                <p><strong>Impact:</strong> Enabling large-scale brain MRI analysis that wouldn't fit in GPU memory otherwise!</p>
             </div>
         </div>
 
@@ -964,7 +962,7 @@ print(f"Checkpoint layers: {plan.checkpoint_layers}")
                 </ul>
 
                 <h2 style="color: #667eea; margin-top: 40px;">Impact</h2>
-                <p style="font-size: 1.3em;">Gradient checkpointing is a fundamental technique that enables training of models like GPT-4, DALL-E, and other large-scale AI systems.</p>
+                <p style="font-size: 1.3em;">Gradient checkpointing is a fundamental technique that enables training of large 3D brain MRI models for segmentation, tumor detection, and parcellation.</p>
             </div>
 
             <p class="subtitle" style="margin-top: 60px;">

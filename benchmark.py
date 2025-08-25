@@ -1,8 +1,8 @@
 """
-Benchmarking suite for gradient checkpointing in 3D medical imaging.
+Benchmarking suite for gradient checkpointing in 3D brain MRI analysis.
 
 Compares memory usage and training time across different checkpointing strategies
-for 3D medical imaging models (U-Net, V-Net, nnU-Net):
+for 3D brain MRI models (U-Net, brain parcellation networks):
 - Standard backpropagation (O(n) memory, O(n) compute)
 - Full checkpointing (O(1) memory, O(n²) compute)
 - Selective checkpointing (O(√n) memory, O(n√n) compute)
@@ -21,10 +21,10 @@ from gradient_checkpointing import checkpoint, CheckpointedMedicalSequential, Se
 
 
 @dataclass
-class MedicalBenchmarkResult:
-    """Results from a medical imaging benchmark run."""
+class BrainMRIBenchmarkResult:
+    """Results from a brain MRI imaging benchmark run."""
     strategy: str
-    architecture: str  # U-Net, V-Net, nnU-Net
+    architecture: str  # U-Net, brain parcellation network
     peak_memory_mb: float
     avg_memory_mb: float
     total_time_seconds: float
@@ -38,7 +38,7 @@ class MedicalBenchmarkResult:
 
 
 class MemoryMonitor:
-    """Monitor memory usage during medical model training."""
+    """Monitor memory usage during brain MRI model training."""
     
     def __init__(self):
         self.reset()
@@ -71,7 +71,7 @@ class MemoryMonitor:
 
 
 class UNet3DTest(nn.Module):
-    """3D U-Net for medical imaging benchmarking."""
+    """3D U-Net for brain MRI benchmarking."""
     
     def __init__(self, in_channels: int = 1, num_classes: int = 4, 
                  base_features: int = 32, depth: int = 4):
@@ -139,28 +139,28 @@ class UNet3DTest(nn.Module):
         return self.output(x)
 
 
-class VNet3DTest(nn.Module):
-    """3D V-Net for medical imaging benchmarking."""
+class BrainParcellationNet(nn.Module):
+    """3D Brain Parcellation Network for benchmarking."""
     
-    def __init__(self, in_channels: int = 1, num_classes: int = 4):
+    def __init__(self, in_channels: int = 1, num_classes: int = 100):  # 100 brain regions
         super().__init__()
         
         # Initial convolution
-        self.input_tr = nn.Conv3d(in_channels, 16, 5, padding=2)
+        self.input_conv = nn.Conv3d(in_channels, 16, 3, padding=1)
         
         # Encoder blocks with residual connections
-        self.down_tr32 = self._res_block(16, 32, stride=2)
-        self.down_tr64 = self._res_block(32, 64, stride=2)
-        self.down_tr128 = self._res_block(64, 128, stride=2)
-        self.down_tr256 = self._res_block(128, 256, stride=2)
+        self.down_32 = self._res_block(16, 32, stride=2)
+        self.down_64 = self._res_block(32, 64, stride=2)
+        self.down_128 = self._res_block(64, 128, stride=2)
+        self.down_256 = self._res_block(128, 256, stride=2)
         
         # Decoder blocks
-        self.up_tr256 = self._up_block(256, 256)
-        self.up_tr128 = self._up_block(256, 128)
-        self.up_tr64 = self._up_block(128, 64)
-        self.up_tr32 = self._up_block(64, 32)
+        self.up_256 = self._up_block(256, 256)
+        self.up_128 = self._up_block(256, 128)
+        self.up_64 = self._up_block(128, 64)
+        self.up_32 = self._up_block(64, 32)
         
-        # Output
+        # Output for brain parcellation
         self.output = nn.Conv3d(32, num_classes, 1)
     
     def _res_block(self, in_channels, out_channels, stride=1):
@@ -183,20 +183,20 @@ class VNet3DTest(nn.Module):
         )
     
     def forward(self, x):
-        """Forward pass through V-Net."""
-        x = self.input_tr(x)
+        """Forward pass through Brain Parcellation Network."""
+        x = self.input_conv(x)
         
         # Encoder
-        down1 = self.down_tr32(x)
-        down2 = self.down_tr64(down1)
-        down3 = self.down_tr128(down2)
-        down4 = self.down_tr256(down3)
+        down1 = self.down_32(x)
+        down2 = self.down_64(down1)
+        down3 = self.down_128(down2)
+        down4 = self.down_256(down3)
         
         # Decoder with skip connections
-        up4 = self.up_tr256(down4)
-        up3 = self.up_tr128(up4 + down3)
-        up2 = self.up_tr64(up3 + down2)
-        up1 = self.up_tr32(up2 + down1)
+        up4 = self.up_256(down4)
+        up3 = self.up_128(up4 + down3)
+        up2 = self.up_64(up3 + down2)
+        up1 = self.up_32(up2 + down1)
         
         return self.output(up1)
 
@@ -262,7 +262,7 @@ class SelectiveCheckpointedUNet3D(UNet3DTest):
         return self.output(x)
 
 
-def run_medical_benchmark(
+def run_brain_mri_benchmark(
     model: nn.Module,
     strategy_name: str,
     architecture_name: str,
@@ -270,21 +270,21 @@ def run_medical_benchmark(
     volume_shape: Tuple[int, int, int],
     iterations: int = 10,
     device: str = 'cuda' if torch.cuda.is_available() else 'cpu'
-) -> MedicalBenchmarkResult:
+) -> BrainMRIBenchmarkResult:
     """
-    Run a benchmark for medical imaging models.
+    Run a benchmark for brain MRI models.
     
     Args:
-        model: The 3D medical model to benchmark
+        model: The 3D brain MRI model to benchmark
         strategy_name: Name of the checkpointing strategy
-        architecture_name: Architecture type (U-Net, V-Net, etc.)
+        architecture_name: Architecture type (U-Net, Brain Parcellation Net, etc.)
         batch_size: Batch size for training
-        volume_shape: Shape of 3D volume (D, H, W)
+        volume_shape: Shape of 3D brain volume (D, H, W)
         iterations: Number of training iterations
         device: Device to run on
     
     Returns:
-        MedicalBenchmarkResult with timing and memory statistics
+        BrainMRIBenchmarkResult with timing and memory statistics
     """
     model = model.to(device)
     model.train()
@@ -317,7 +317,7 @@ def run_medical_benchmark(
             torch.cuda.empty_cache()
         gc.collect()
         
-        # Generate random 3D medical volume
+        # Generate random 3D brain MRI volume
         x = torch.randn(batch_size, 1, *volume_shape, device=device)
         target = torch.randint(0, 4, (batch_size, *volume_shape), device=device)
         
@@ -355,7 +355,7 @@ def run_medical_benchmark(
     avg_backward = np.mean(backward_times)
     voxels_per_second = total_voxels / (avg_forward + avg_backward)
     
-    result = MedicalBenchmarkResult(
+    result = BrainMRIBenchmarkResult(
         strategy=strategy_name,
         architecture=architecture_name,
         peak_memory_mb=peak_mem,
@@ -378,18 +378,18 @@ def run_medical_benchmark(
     return result
 
 
-def compare_medical_strategies(
+def compare_brain_mri_strategies(
     architecture: str = "unet",
     volume_shape: Tuple[int, int, int] = (64, 128, 128),
     batch_size: int = 2,
     iterations: int = 10
-) -> Dict[str, MedicalBenchmarkResult]:
+) -> Dict[str, BrainMRIBenchmarkResult]:
     """
-    Compare different checkpointing strategies for medical imaging.
+    Compare different checkpointing strategies for brain MRI analysis.
     
     Args:
-        architecture: Model architecture ("unet" or "vnet")
-        volume_shape: 3D volume dimensions (D, H, W)
+        architecture: Model architecture ("unet" or "brain_parcellation")
+        volume_shape: 3D brain volume dimensions (D, H, W)
         batch_size: Batch size for training
         iterations: Number of training iterations
     
@@ -400,7 +400,7 @@ def compare_medical_strategies(
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     
     print(f"\n{'='*80}")
-    print(f"3D Medical Imaging Gradient Checkpointing Benchmark")
+    print(f"3D Brain MRI Gradient Checkpointing Benchmark")
     print(f"{'='*80}")
     print(f"Configuration:")
     print(f"  Architecture: {architecture.upper()}")
@@ -416,15 +416,15 @@ def compare_medical_strategies(
         CheckpointedModelClass = CheckpointedUNet3D
         SelectiveModelClass = SelectiveCheckpointedUNet3D
         arch_name = "3D U-Net"
-    else:  # vnet
-        ModelClass = VNet3DTest
-        CheckpointedModelClass = VNet3DTest  # Use same for now
-        SelectiveModelClass = VNet3DTest
-        arch_name = "3D V-Net"
+    else:  # brain_parcellation
+        ModelClass = BrainParcellationNet
+        CheckpointedModelClass = BrainParcellationNet  # Use same for now
+        SelectiveModelClass = BrainParcellationNet
+        arch_name = "Brain Parcellation Network"
     
     # Strategy 1: Standard backpropagation
     model = ModelClass()
-    results['standard'] = run_medical_benchmark(
+    results['standard'] = run_brain_mri_benchmark(
         model, "Standard Backprop", arch_name, batch_size, 
         volume_shape, iterations, device
     )
@@ -434,7 +434,7 @@ def compare_medical_strategies(
     
     # Strategy 2: Full checkpointing
     model = CheckpointedModelClass()
-    results['full_checkpoint'] = run_medical_benchmark(
+    results['full_checkpoint'] = run_brain_mri_benchmark(
         model, "Full Checkpointing", arch_name, batch_size,
         volume_shape, iterations, device
     )
@@ -445,7 +445,7 @@ def compare_medical_strategies(
     # Strategy 3: Selective checkpointing (encoder only)
     if architecture.lower() == "unet":
         model = SelectiveModelClass(checkpoint_encoder=True, checkpoint_decoder=False)
-        results['selective_encoder'] = run_medical_benchmark(
+        results['selective_encoder'] = run_brain_mri_benchmark(
             model, "Selective (Encoder)", arch_name, batch_size,
             volume_shape, iterations, device
         )
@@ -456,7 +456,7 @@ def compare_medical_strategies(
     # Strategy 4: Selective checkpointing (bottleneck only)
     if architecture.lower() == "unet":
         model = SelectiveModelClass(checkpoint_encoder=False, checkpoint_decoder=False)
-        results['selective_bottleneck'] = run_medical_benchmark(
+        results['selective_bottleneck'] = run_brain_mri_benchmark(
             model, "Bottleneck Only", arch_name, batch_size,
             volume_shape, iterations, device
         )
@@ -467,10 +467,10 @@ def compare_medical_strategies(
     return results
 
 
-def print_medical_comparison(results: Dict[str, MedicalBenchmarkResult]):
-    """Print a comparison table of medical imaging benchmark results."""
+def print_brain_mri_comparison(results: Dict[str, BrainMRIBenchmarkResult]):
+    """Print a comparison table of brain MRI benchmark results."""
     print(f"\n{'='*100}")
-    print(f"Medical Imaging Results Summary")
+    print(f"Brain MRI Results Summary")
     print(f"{'='*100}")
     print(f"{'Strategy':<25} {'Peak Mem (MB)':<15} {'Avg Mem (MB)':<15} "
           f"{'Forward (s)':<12} {'Backward (s)':<12} {'MVoxels/s':<12}")
@@ -499,8 +499,8 @@ def print_medical_comparison(results: Dict[str, MedicalBenchmarkResult]):
     
     print(f"{'='*100}")
     
-    # Print medical-specific analysis
-    print(f"\nMedical Imaging Trade-off Analysis:")
+    # Print brain MRI-specific analysis
+    print(f"\nBrain MRI Analysis Trade-off Analysis:")
     print(f"{'-'*50}")
     
     if baseline:
@@ -515,24 +515,24 @@ def print_medical_comparison(results: Dict[str, MedicalBenchmarkResult]):
                 print(f"  Suitable for: ", end="")
                 
                 if mem_saving > 50:
-                    print("Large 3D volumes (256³+), whole-brain MRI")
+                    print("Large brain volumes (256³+), whole-brain parcellation")
                 elif mem_saving > 30:
-                    print("Standard clinical volumes (128³-256³)")
+                    print("Standard brain MRI (128³-256³)")
                 else:
-                    print("Small ROI analysis, real-time processing")
+                    print("Small brain ROI analysis, real-time processing")
 
 
-def benchmark_clinical_scenarios():
-    """Benchmark typical clinical imaging scenarios."""
+def benchmark_brain_mri_scenarios():
+    """Benchmark typical brain MRI scenarios."""
     print("\n" + "="*80)
-    print("CLINICAL IMAGING SCENARIO BENCHMARKS")
+    print("BRAIN MRI SCENARIO BENCHMARKS")
     print("="*80)
     
     scenarios = [
         ("Brain MRI T1", (128, 128, 128), 2),  # Standard brain MRI
         ("High-res Brain", (256, 256, 128), 1),  # High-resolution brain
-        ("Cardiac CT", (64, 256, 256), 2),  # Cardiac imaging
-        ("Abdominal CT", (40, 512, 512), 1),  # Large abdominal scan
+        ("Brain Parcellation", (256, 256, 256), 1),  # Whole-brain parcellation
+        ("Multi-modal Brain", (155, 240, 240), 2),  # BraTS dataset size
     ]
     
     all_results = {}
@@ -545,14 +545,14 @@ def benchmark_clinical_scenarios():
         print(f"{'='*80}")
         
         try:
-            results = compare_medical_strategies(
+            results = compare_brain_mri_strategies(
                 architecture="unet",
                 volume_shape=volume_shape,
                 batch_size=batch_size,
                 iterations=5
             )
             all_results[scenario_name] = results
-            print_medical_comparison(results)
+            print_brain_mri_comparison(results)
         except RuntimeError as e:
             if "out of memory" in str(e).lower():
                 print(f"  ⚠️  Out of memory for {scenario_name} - volume too large")
@@ -564,35 +564,35 @@ def benchmark_clinical_scenarios():
 
 
 if __name__ == "__main__":
-    # Run medical imaging benchmarks
+    # Run brain MRI benchmarks
     
-    # Small volume test
+    # Small brain ROI test
     print("\n" + "="*80)
-    print("SMALL VOLUME (ROI Analysis)")
+    print("SMALL BRAIN ROI ANALYSIS")
     print("="*80)
-    results_small = compare_medical_strategies(
+    results_small = compare_brain_mri_strategies(
         architecture="unet",
         volume_shape=(32, 64, 64),
         batch_size=4,
         iterations=10
     )
-    print_medical_comparison(results_small)
+    print_brain_mri_comparison(results_small)
     
-    # Standard clinical volume
+    # Standard brain MRI volume
     print("\n" + "="*80)
-    print("STANDARD CLINICAL VOLUME")
+    print("STANDARD BRAIN MRI VOLUME")
     print("="*80)
-    results_standard = compare_medical_strategies(
+    results_standard = compare_brain_mri_strategies(
         architecture="unet",
         volume_shape=(64, 128, 128),
         batch_size=2,
         iterations=10
     )
-    print_medical_comparison(results_standard)
+    print_brain_mri_comparison(results_standard)
     
-    # Run clinical scenario benchmarks
+    # Run brain MRI scenario benchmarks
     if torch.cuda.is_available() and torch.cuda.get_device_properties(0).total_memory > 8e9:
-        benchmark_clinical_scenarios()
+        benchmark_brain_mri_scenarios()
     else:
-        print("\n⚠️  Skipping large volume benchmarks - insufficient GPU memory")
+        print("\n⚠️  Skipping large brain volume benchmarks - insufficient GPU memory")
         print("💡 This is where gradient checkpointing becomes essential!")

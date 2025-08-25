@@ -1,9 +1,9 @@
 """
-Gradient checkpointing implementation for 3D medical imaging with PyTorch.
+Gradient checkpointing implementation for 3D brain MRI analysis with PyTorch.
 
-This module demonstrates memory-efficient training for 3D MRI segmentation and
-classification models by selectively storing activations during forward pass
-and recomputing them during backward pass.
+This module demonstrates memory-efficient training for 3D brain MRI segmentation,
+tumor detection, and parcellation models by selectively storing activations 
+during forward pass and recomputing them during backward pass.
 """
 
 import torch
@@ -20,7 +20,7 @@ class CheckpointFunction(torch.autograd.Function):
     def forward(ctx, run_function, preserve_rng_state, *args):
         """
         Forward pass: run the function but don't save intermediate activations.
-        Critical for 3D medical imaging where activation tensors can be very large.
+        Critical for 3D brain MRI analysis where activation tensors can be very large.
         
         Args:
             ctx: Context object for storing information for backward pass
@@ -62,7 +62,7 @@ class CheckpointFunction(torch.autograd.Function):
     def backward(ctx, *grad_outputs):
         """
         Backward pass: recompute forward pass to get intermediate activations,
-        then compute gradients. Essential for fitting large 3D volumes in GPU memory.
+        then compute gradients. Essential for fitting large 3D brain MRI volumes in GPU memory.
         """
         # Retrieve saved tensors
         tensor_inputs = ctx.saved_tensors
@@ -123,9 +123,9 @@ class CheckpointFunction(torch.autograd.Function):
 
 def checkpoint(function: Callable[..., Any], *args, preserve_rng_state: bool = True) -> Any:
     """
-    Checkpoint a function to save memory during 3D medical image processing.
+    Checkpoint a function to save memory during 3D brain MRI processing.
     
-    Particularly useful for 3D U-Net, V-Net, and other volumetric architectures
+    Particularly useful for 3D U-Net and other brain imaging architectures
     where intermediate feature maps can consume significant GPU memory.
     
     Args:
@@ -141,13 +141,13 @@ def checkpoint(function: Callable[..., Any], *args, preserve_rng_state: bool = T
 
 class CheckpointedMedicalSequential(nn.Module):
     """
-    Sequential container with gradient checkpointing for 3D medical imaging models.
-    Optimized for architectures like 3D U-Net, V-Net, and nnU-Net.
+    Sequential container with gradient checkpointing for 3D brain MRI models.
+    Optimized for brain imaging architectures like 3D U-Net and brain parcellation networks.
     """
     
     def __init__(self, *modules, checkpoint_segments: int = 1):
         """
-        Initialize checkpointed sequential container for medical imaging.
+        Initialize checkpointed sequential container for brain MRI analysis.
         
         Args:
             *modules: Modules to run sequentially (e.g., 3D conv blocks)
@@ -159,7 +159,7 @@ class CheckpointedMedicalSequential(nn.Module):
         self.checkpoint_segments = checkpoint_segments
     
     def forward(self, x):
-        """Forward pass with checkpointing for 3D medical volumes."""
+        """Forward pass with checkpointing for 3D brain MRI volumes."""
         if not self.training or self.checkpoint_segments == 0:
             # No checkpointing during evaluation or if disabled
             for module in self.modules_list:
@@ -189,18 +189,18 @@ class CheckpointedMedicalSequential(nn.Module):
 
 class SelectiveCheckpointMedical:
     """
-    Selective checkpointing for 3D medical imaging models.
+    Selective checkpointing for 3D brain MRI models.
     
     Allows fine-grained control over which layers to checkpoint,
-    essential for balancing memory usage and computation in 3D CNNs.
+    essential for balancing memory usage and computation in brain imaging CNNs.
     """
     
     def __init__(self, model: nn.Module, checkpoint_layers: List[int] = None):
         """
-        Initialize selective checkpointing for medical imaging models.
+        Initialize selective checkpointing for brain MRI models.
         
         Args:
-            model: The 3D medical imaging model (U-Net, V-Net, etc.)
+            model: The 3D brain imaging model (U-Net, etc.)
             checkpoint_layers: List of layer indices to checkpoint
                              (typically deeper layers with larger feature maps)
         """
@@ -255,14 +255,14 @@ def memory_efficient_medical_training(
     mixed_precision: bool = True
 ):
     """
-    Memory-efficient training loop for 3D medical imaging models.
+    Memory-efficient training loop for 3D brain MRI models.
     
-    Designed for training on large 3D MRI/CT volumes with limited GPU memory.
+    Designed for training on large 3D brain MRI volumes with limited GPU memory.
     Combines gradient accumulation, checkpointing, and mixed precision.
     
     Args:
-        model: 3D medical imaging model (U-Net, V-Net, etc.)
-        data_loader: DataLoader for 3D medical volumes
+        model: 3D brain imaging model (U-Net, etc.)
+        data_loader: DataLoader for 3D brain MRI volumes
         loss_fn: Loss function (Dice, Cross-Entropy, etc.)
         optimizer: Optimizer (Adam, SGD, etc.)
         accumulation_steps: Number of batches to accumulate gradients
@@ -275,7 +275,7 @@ def memory_efficient_medical_training(
     scaler = torch.cuda.amp.GradScaler() if mixed_precision else None
     
     for batch_idx, (volumes, targets) in enumerate(data_loader):
-        # volumes shape: [B, C, D, H, W] for 3D medical images
+        # volumes shape: [B, C, D, H, W] for 3D brain MRI
         
         with torch.cuda.amp.autocast(enabled=mixed_precision):
             # Forward pass with optional checkpointing
@@ -318,8 +318,8 @@ def memory_efficient_medical_training(
 
 class VolumetricCheckpointStrategy:
     """
-    Advanced checkpointing strategy for 3D volumetric medical data.
-    Optimizes memory usage based on volume dimensions and model architecture.
+    Advanced checkpointing strategy for 3D brain MRI data.
+    Optimizes memory usage based on brain volume dimensions and model architecture.
     """
     
     def __init__(self, volume_size: Tuple[int, int, int], model_depth: int):
@@ -336,7 +336,7 @@ class VolumetricCheckpointStrategy:
         
     def calculate_memory_usage(self, batch_size: int, channels: int) -> float:
         """
-        Calculate approximate memory usage for 3D volumes.
+        Calculate approximate memory usage for 3D brain MRI volumes.
         
         Returns:
             Memory usage in GB
@@ -355,17 +355,18 @@ class VolumetricCheckpointStrategy:
             List of layer indices to checkpoint
         """
         # Simple heuristic: checkpoint deeper layers which typically have more channels
+        # Optimized for brain MRI processing
         checkpoint_layers = []
         
         # Checkpoint every nth layer based on memory constraints
         if available_memory_gb < 8:
-            # Aggressive checkpointing for low memory
+            # Aggressive checkpointing for low memory GPUs (RTX 3070)
             checkpoint_interval = 2
         elif available_memory_gb < 16:
-            # Moderate checkpointing
+            # Moderate checkpointing for mid-range GPUs (V100)
             checkpoint_interval = 3
         else:
-            # Light checkpointing for high memory
+            # Light checkpointing for high memory GPUs (A100)
             checkpoint_interval = 4
             
         checkpoint_layers = list(range(0, self.model_depth, checkpoint_interval))

@@ -1,8 +1,8 @@
 """
-Usage examples for gradient checkpointing in 3D medical imaging.
+Usage examples for gradient checkpointing in 3D brain MRI analysis.
 
 This module provides comprehensive examples of using gradient checkpointing
-for 3D MRI segmentation, brain imaging, and other medical imaging tasks.
+for 3D brain MRI segmentation, tumor detection, and parcellation tasks.
 """
 
 import torch
@@ -26,9 +26,8 @@ from optimal_checkpointing import (
 )
 from architecture_specific import (
     UNet3DCheckpointing,
-    VNetCheckpointing,
-    nnUNetCheckpointing,
-    MixedPrecisionMedicalCheckpointing
+    BrainMRICheckpointing,
+    MixedPrecisionBrainCheckpointing
 )
 from profiling_visualization import (
     MemoryProfiler,
@@ -156,20 +155,20 @@ def example_1_basic_3d_unet_checkpointing():
     print("that wouldn't fit in GPU memory otherwise.")
 
 
-def example_2_medical_sequential_checkpointing():
-    """Example 2: Using CheckpointedMedicalSequential for V-Net."""
+def example_2_brain_sequential_checkpointing():
+    """Example 2: Using CheckpointedMedicalSequential for brain parcellation."""
     print("\n" + "="*60)
-    print("Example 2: V-Net with CheckpointedMedicalSequential")
+    print("Example 2: Brain Parcellation with CheckpointedMedicalSequential")
     print("="*60)
     
-    # Create V-Net style residual blocks
-    class VNetResBlock(nn.Module):
+    # Create brain parcellation residual blocks
+    class BrainParcellationBlock(nn.Module):
         def __init__(self, channels):
             super().__init__()
-            self.conv1 = nn.Conv3d(channels, channels, 5, padding=2)
+            self.conv1 = nn.Conv3d(channels, channels, 3, padding=1)
             self.bn1 = nn.BatchNorm3d(channels)
             self.relu = nn.ReLU(inplace=True)
-            self.conv2 = nn.Conv3d(channels, channels, 5, padding=2)
+            self.conv2 = nn.Conv3d(channels, channels, 3, padding=1)
             self.bn2 = nn.BatchNorm3d(channels)
         
         def forward(self, x):
@@ -182,48 +181,48 @@ def example_2_medical_sequential_checkpointing():
             x = self.relu(x + residual)
             return x
     
-    # Create V-Net encoder using CheckpointedMedicalSequential
-    vnet_encoder = CheckpointedMedicalSequential(
-        nn.Conv3d(1, 16, 5, padding=2),
+    # Create brain parcellation encoder using CheckpointedMedicalSequential
+    brain_encoder = CheckpointedMedicalSequential(
+        nn.Conv3d(1, 16, 3, padding=1),
         nn.BatchNorm3d(16),
         nn.ReLU(inplace=True),
-        VNetResBlock(16),
+        BrainParcellationBlock(16),
         nn.Conv3d(16, 32, 2, stride=2),  # Downsampling
-        VNetResBlock(32),
-        VNetResBlock(32),
+        BrainParcellationBlock(32),
+        BrainParcellationBlock(32),
         nn.Conv3d(32, 64, 2, stride=2),  # Downsampling
-        VNetResBlock(64),
-        VNetResBlock(64),
-        VNetResBlock(64),
+        BrainParcellationBlock(64),
+        BrainParcellationBlock(64),
+        BrainParcellationBlock(64),
         checkpoint_segments=3  # Checkpoint every 3-4 layers
     )
     
-    print("V-Net Encoder Structure:")
+    print("Brain Parcellation Encoder Structure:")
     print(f"  Total blocks: 11")
     print(f"  Checkpoint segments: 3")
     print(f"  Memory-intensive layers: Residual blocks at each resolution")
     
-    # Test with 3D cardiac MRI volume
-    cardiac_volume = torch.randn(1, 1, 64, 128, 128)  # Smaller depth for cardiac
-    print(f"\nCardiac MRI Volume: {cardiac_volume.shape}")
+    # Test with 3D brain MRI volume
+    brain_volume = torch.randn(1, 1, 128, 128, 128)  # Standard brain MRI
+    print(f"\nBrain MRI Volume: {brain_volume.shape}")
     
-    vnet_encoder.train()
-    output = vnet_encoder(cardiac_volume)
+    brain_encoder.train()
+    output = brain_encoder(brain_volume)
     print(f"Encoder output shape: {output.shape}")
     
     # Estimate memory savings
-    total_params = sum(p.numel() for p in vnet_encoder.parameters())
+    total_params = sum(p.numel() for p in brain_encoder.parameters())
     print(f"\nModel parameters: {total_params / 1e6:.2f}M")
     print("Estimated memory savings: ~40% with 3 checkpoint segments")
 
 
 def example_3_selective_layer_checkpointing():
-    """Example 3: Selective checkpointing for memory bottlenecks."""
+    """Example 3: Selective checkpointing for brain tumor detection."""
     print("\n" + "="*60)
-    print("Example 3: Selective Layer Checkpointing for nnU-Net")
+    print("Example 3: Selective Layer Checkpointing for Brain Tumor Detection")
     print("="*60)
     
-    class nnUNetBlock(nn.Module):
+    class BrainTumorBlock(nn.Module):
         def __init__(self, in_channels, out_channels, kernel_size=3):
             super().__init__()
             self.conv1 = nn.Conv3d(in_channels, out_channels, kernel_size, padding=kernel_size//2)
@@ -242,28 +241,28 @@ def example_3_selective_layer_checkpointing():
             x = self.lrelu2(x)
             return x
     
-    # Build nnU-Net style architecture
+    # Build brain tumor detection architecture
     model = nn.Sequential(
         # Stage 1 - highest resolution
-        nnUNetBlock(1, 32),
+        BrainTumorBlock(1, 32),
         nn.MaxPool3d(2),
         # Stage 2
-        nnUNetBlock(32, 64),
+        BrainTumorBlock(32, 64),
         nn.MaxPool3d(2),
         # Stage 3
-        nnUNetBlock(64, 128),
+        BrainTumorBlock(64, 128),
         nn.MaxPool3d(2),
         # Stage 4 - bottleneck (highest memory usage)
-        nnUNetBlock(128, 256),
+        BrainTumorBlock(128, 256),
         nn.MaxPool3d(2),
         # Stage 5 - deepest
-        nnUNetBlock(256, 320)
+        BrainTumorBlock(256, 320)
     )
     
     # Identify memory-intensive layers (deeper layers with more channels)
     checkpoint_layers = [6, 8, 10]  # Checkpoint stages 3, 4, 5
     
-    print("nnU-Net Architecture:")
+    print("Brain Tumor Detection Architecture:")
     print(f"  Total stages: 5")
     print(f"  Channels: 32 → 64 → 128 → 256 → 320")
     print(f"  Selective checkpointing at layers: {checkpoint_layers}")
@@ -272,12 +271,12 @@ def example_3_selective_layer_checkpointing():
     # Apply selective checkpointing
     selective_checkpoint = SelectiveCheckpointMedical(model, checkpoint_layers)
     
-    # Test with abdominal CT volume
-    ct_volume = torch.randn(1, 1, 40, 224, 224)  # Typical abdominal CT patch
-    print(f"\nAbdominal CT Volume: {ct_volume.shape}")
+    # Test with brain MRI volume (T1 post-contrast for tumor detection)
+    brain_mri_volume = torch.randn(1, 1, 155, 240, 240)  # BraTS standard size
+    print(f"\nBrain MRI Volume (T1+Gd): {brain_mri_volume.shape}")
     
     model.train()
-    output = model(ct_volume)
+    output = model(brain_mri_volume)
     print(f"Output shape: {output.shape}")
     
     print("\nMemory optimization strategy:")
@@ -433,13 +432,13 @@ def example_5_mixed_precision_checkpointing():
 
 
 def example_6_multi_gpu_checkpointing():
-    """Example 6: Distributed training with checkpointing for large cohorts."""
+    """Example 6: Distributed training with checkpointing for large brain MRI cohorts."""
     print("\n" + "="*60)
-    print("Example 6: Multi-GPU Training for Large Medical Cohorts")
+    print("Example 6: Multi-GPU Training for Large Brain MRI Cohorts")
     print("="*60)
     
     print("Scenario: Training on large-scale brain MRI dataset")
-    print("  - Dataset: 10,000 T1-weighted MRI scans")
+    print("  - Dataset: 10,000 T1-weighted brain MRI scans")
     print("  - Task: Whole-brain parcellation (100+ regions)")
     print("  - Hardware: 4x V100 GPUs (16GB each)")
     
@@ -462,8 +461,8 @@ def example_6_multi_gpu_checkpointing():
     model = model.cuda(local_rank)
     model = nn.parallel.DistributedDataParallel(model, device_ids=[local_rank])
     
-    # Distributed data loading
-    dataset = BrainMRIDataset('path/to/data')
+    # Distributed data loading for brain MRI
+    dataset = BrainMRIDataset('path/to/brain_mri_data')
     sampler = DistributedSampler(dataset)
     dataloader = DataLoader(dataset, sampler=sampler, batch_size=2)
     
@@ -489,18 +488,18 @@ def example_6_multi_gpu_checkpointing():
 
 
 def run_all_examples():
-    """Run all medical imaging examples."""
+    """Run all brain MRI imaging examples."""
     print("\n" + "="*80)
-    print("Gradient Checkpointing Examples for 3D Medical Imaging")
+    print("Gradient Checkpointing Examples for 3D Brain MRI Analysis")
     print("="*80)
     
     examples = [
         ("3D U-Net Brain MRI Segmentation", example_1_basic_3d_unet_checkpointing),
-        ("V-Net Cardiac Imaging", example_2_medical_sequential_checkpointing),
-        ("nnU-Net Selective Checkpointing", example_3_selective_layer_checkpointing),
+        ("Brain Parcellation Sequential Checkpointing", example_2_brain_sequential_checkpointing),
+        ("Brain Tumor Detection Selective Checkpointing", example_3_selective_layer_checkpointing),
         ("Optimal GPU Memory Management", example_4_optimal_checkpointing_strategy),
         ("Mixed Precision Brain Segmentation", example_5_mixed_precision_checkpointing),
-        ("Multi-GPU Large Cohort Training", example_6_multi_gpu_checkpointing)
+        ("Multi-GPU Brain MRI Cohort Training", example_6_multi_gpu_checkpointing)
     ]
     
     print("\nAvailable Examples:")
@@ -517,7 +516,7 @@ def run_all_examples():
             print("Continuing with next example...")
     
     print("\n" + "="*80)
-    print("Examples completed successfully!")
+    print("Brain MRI checkpointing examples completed successfully!")
     print("="*80)
 
 

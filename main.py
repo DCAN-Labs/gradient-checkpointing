@@ -92,10 +92,10 @@ Examples:
     elif args.example:
         run_medical_example(args.example)
     elif args.run_benchmarks:
-        run_full_medical_benchmarks(tuple(args.volume_size), args.batch_size)
+        run_full_brain_mri_benchmarks(tuple(args.volume_size), args.batch_size)
     else:
         # Default: show menu
-        show_medical_menu(args.device, tuple(args.volume_size), args.batch_size)
+        show_brain_mri_menu(args.device, tuple(args.volume_size), args.batch_size)
 
 
 def run_medical_demo(demo_type, device, volume_size, batch_size):
@@ -114,27 +114,27 @@ def run_medical_demo(demo_type, device, volume_size, batch_size):
         example_2_medical_sequential_checkpointing()
         
     elif demo_type == 'benchmark':
-        print("\n📊 Running Medical Imaging Benchmark Demo...")
-        from benchmark import compare_medical_strategies, print_medical_comparison
-        results = compare_medical_strategies(
+        print("\n📊 Running Brain MRI Benchmark Demo...")
+        from benchmark import compare_brain_mri_strategies, print_brain_mri_comparison
+        results = compare_brain_mri_strategies(
             architecture="unet",
             volume_shape=volume_size,
             batch_size=batch_size,
             iterations=5
         )
-        print_medical_comparison(results)
+        print_brain_mri_comparison(results)
         
     elif demo_type == 'optimal':
-        print("\n🎯 Running Optimal Checkpoint Selection for Medical Imaging...")
+        print("\n🎯 Running Optimal Checkpoint Selection for Brain MRI...")
         from optimal_checkpointing import demonstrate_medical_checkpointing
         demonstrate_medical_checkpointing()
         
     elif demo_type == 'clinical':
-        print("\n🏥 Running Clinical Scenario Demonstrations...")
-        run_clinical_scenarios(device, batch_size)
+        print("\n🧠 Running Brain MRI Scenario Demonstrations...")
+        run_brain_mri_scenarios(device, batch_size)
         
     elif demo_type == 'all':
-        print("\n🔬 Running ALL Medical Imaging Demonstrations...")
+        print("\n🔬 Running ALL Brain MRI Demonstrations...")
         from examples import run_all_examples
         run_all_examples()
 
@@ -164,36 +164,36 @@ def run_medical_example(example_num):
     func()
 
 
-def run_clinical_scenarios(device, batch_size):
-    """Run demonstrations of clinical imaging scenarios."""
+def run_brain_mri_scenarios(device, batch_size):
+    """Run demonstrations of brain MRI analysis scenarios."""
     print("\n" + "="*80)
-    print("Clinical Imaging Scenarios")
+    print("Brain MRI Analysis Scenarios")
     print("="*80)
     
     scenarios = [
         {
             'name': 'Brain MRI - Tumor Segmentation',
-            'volume_size': (128, 128, 128),
-            'description': 'T1-weighted MRI with gadolinium contrast',
+            'volume_size': (155, 240, 240),
+            'description': 'Multi-modal MRI (T1, T1+Gd, T2, FLAIR)',
             'task': 'Segment tumor, edema, and necrotic tissue'
         },
         {
-            'name': 'Cardiac CT - Vessel Analysis',
-            'volume_size': (64, 256, 256),
-            'description': 'Contrast-enhanced cardiac CT',
-            'task': 'Segment coronary arteries and myocardium'
+            'name': 'Brain MRI - Tissue Segmentation',
+            'volume_size': (128, 128, 128),
+            'description': 'T1-weighted structural MRI',
+            'task': 'Segment gray matter, white matter, CSF'
         },
         {
-            'name': 'Lung CT - COVID-19 Detection',
-            'volume_size': (32, 512, 512),
-            'description': 'High-resolution chest CT',
-            'task': 'Detect and quantify ground-glass opacities'
-        },
-        {
-            'name': 'Whole Brain - Parcellation',
+            'name': 'Brain MRI - Parcellation',
             'volume_size': (256, 256, 256),
             'description': 'High-resolution structural MRI',
             'task': 'Parcellate brain into 100+ anatomical regions'
+        },
+        {
+            'name': 'Brain MRI - Lesion Detection',
+            'volume_size': (182, 218, 182),
+            'description': 'T2-FLAIR MRI sequence',
+            'task': 'Detect and segment white matter lesions'
         }
     ]
     
@@ -213,32 +213,32 @@ def run_clinical_scenarios(device, batch_size):
         
         if memory_gb > 8:
             print("⚠️ Large memory requirement - Gradient checkpointing ESSENTIAL")
-            print("Recommended strategy: Full encoder checkpointing")
+            print("Recommended strategy: Full encoder checkpointing for brain analysis")
         elif memory_gb > 4:
             print("⚠️ Moderate memory requirement - Checkpointing recommended")
-            print("Recommended strategy: Selective checkpointing (bottleneck)")
+            print("Recommended strategy: Selective checkpointing (brain region bottlenecks)")
         else:
             print("✅ Manageable memory requirement")
-            print("Recommended strategy: Optional checkpointing for larger batches")
+            print("Recommended strategy: Optional checkpointing for larger brain batches")
 
 
-def run_full_medical_benchmarks(volume_size, batch_size):
-    """Run comprehensive medical imaging benchmarks."""
-    print("\n🔬 Running Full Medical Imaging Benchmark Suite...")
+def run_full_brain_mri_benchmarks(volume_size, batch_size):
+    """Run comprehensive brain MRI benchmarks."""
+    print("\n🔬 Running Full Brain MRI Benchmark Suite...")
     print("This may take several minutes...\n")
     
-    from benchmark import compare_medical_strategies, print_medical_comparison
+    from benchmark import compare_brain_mri_strategies, print_brain_mri_comparison
     
     configurations = [
-        ("Small ROI (32³)", (32, 32, 32), 4),
+        ("Small Brain ROI (32³)", (32, 32, 32), 4),
         ("Standard Brain MRI (128³)", (128, 128, 128), 2),
         ("High-res Brain (256x256x128)", (256, 256, 128), 1),
     ]
     
-    # Add large volume if enough GPU memory
+    # Add large brain volume if enough GPU memory
     if torch.cuda.is_available() and torch.cuda.get_device_properties(0).total_memory > 16e9:
         configurations.append(
-            ("Whole-body CT (512x512x64)", (64, 512, 512), 1)
+            ("Whole-brain High-res (256³)", (256, 256, 256), 1)
         )
     
     all_results = {}
@@ -249,13 +249,13 @@ def run_full_medical_benchmarks(volume_size, batch_size):
         print(f"{'='*80}")
         
         try:
-            results = compare_medical_strategies(
+            results = compare_brain_mri_strategies(
                 architecture="unet",
                 volume_shape=vol_shape,
                 batch_size=batch,
                 iterations=5
             )
-            print_medical_comparison(results)
+            print_brain_mri_comparison(results)
             all_results[name] = results
         except RuntimeError as e:
             if "out of memory" in str(e).lower():
@@ -265,7 +265,7 @@ def run_full_medical_benchmarks(volume_size, batch_size):
     
     # Summary
     print("\n" + "="*80)
-    print("MEDICAL IMAGING BENCHMARK SUMMARY")
+    print("BRAIN MRI BENCHMARK SUMMARY")
     print("="*80)
     
     for volume_name, results in all_results.items():
@@ -278,21 +278,21 @@ def run_full_medical_benchmarks(volume_size, batch_size):
                 print(f"  {result.strategy}: {mem_save:.1f}% memory saved, {speed_ratio:.2f}x speed")
 
 
-def show_medical_menu(device, volume_size, batch_size):
-    """Show interactive menu for medical imaging demonstrations."""
+def show_brain_mri_menu(device, volume_size, batch_size):
+    """Show interactive menu for brain MRI demonstrations."""
     print("\n" + "="*60)
-    print("🏥 Medical Imaging Interactive Menu")
+    print("🧠 Brain MRI Analysis Interactive Menu")
     print("="*60)
     print("\nAvailable demonstrations:")
     print("1. 3D U-Net Brain MRI Segmentation")
-    print("2. V-Net Cardiac Imaging")
-    print("3. nnU-Net Selective Checkpointing")
+    print("2. Brain Parcellation Sequential Checkpointing")
+    print("3. Brain Tumor Detection Selective Checkpointing")
     print("4. Optimal GPU Memory Management")
     print("5. Mixed Precision Brain Segmentation")
-    print("6. Multi-GPU Large Cohort Training")
-    print("7. Run Clinical Scenarios")
-    print("8. Run Full Medical Benchmark Suite")
-    print("9. Run All Medical Examples")
+    print("6. Multi-GPU Brain MRI Cohort Training")
+    print("7. Run Brain MRI Scenarios")
+    print("8. Run Full Brain MRI Benchmark Suite")
+    print("9. Run All Brain MRI Examples")
     print("0. Exit")
     
     while True:
@@ -305,9 +305,9 @@ def show_medical_menu(device, volume_size, batch_size):
             elif choice in ['1', '2', '3', '4', '5', '6']:
                 run_medical_example(int(choice))
             elif choice == '7':
-                run_clinical_scenarios(device, batch_size)
+                run_brain_mri_scenarios(device, batch_size)
             elif choice == '8':
-                run_full_medical_benchmarks(volume_size, batch_size)
+                run_full_brain_mri_benchmarks(volume_size, batch_size)
             elif choice == '9':
                 from examples import run_all_examples
                 run_all_examples()

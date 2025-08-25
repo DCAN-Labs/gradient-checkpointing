@@ -1,47 +1,47 @@
-# Gradient Checkpointing for 3D Medical Imaging: Memory-Efficient Deep Learning
+# Gradient Checkpointing for 3D Brain MRI Analysis: Memory-Efficient Deep Learning
 
 ## Overview
 
-This repository provides a comprehensive implementation and analysis of gradient checkpointing for 3D medical imaging applications. Learn how to train large volumetric models (U-Net, V-Net, nnU-Net) on limited GPU memory by trading compute for memory efficiency.
+This repository provides a comprehensive implementation and analysis of gradient checkpointing for 3D brain MRI analysis. Learn how to train large brain imaging models (3D U-Net, brain parcellation networks) on limited GPU memory by trading compute for memory efficiency.
 
 ## Table of Contents
 
 1. [Introduction](#introduction)
-2. [Medical Imaging Challenges](#medical-imaging-challenges)
+2. [Brain MRI Challenges](#brain-mri-challenges)
 3. [Core Concepts](#core-concepts)
 4. [Implementation](#implementation)
-5. [Medical Architecture Strategies](#medical-architecture-strategies)
-6. [Benchmarking for Medical Imaging](#benchmarking-for-medical-imaging)
-7. [Optimization for 3D Volumes](#optimization-for-3d-volumes)
-8. [Clinical Applications](#clinical-applications)
+5. [Brain MRI Architecture Strategies](#brain-mri-architecture-strategies)
+6. [Benchmarking for Brain MRI](#benchmarking-for-brain-mri)
+7. [Optimization for Brain Volumes](#optimization-for-brain-volumes)
+8. [Brain MRI Applications](#brain-mri-applications)
 9. [Usage Examples](#usage-examples)
 10. [Performance Analysis](#performance-analysis)
 11. [Hardware Recommendations](#hardware-recommendations)
 
 ## Introduction
 
-Gradient checkpointing is essential for 3D medical imaging deep learning. Medical volumes are inherently large (often 256³ voxels or more), and 3D CNNs require substantial GPU memory. This technique enables processing of clinical-resolution volumes that would otherwise cause out-of-memory errors.
+Gradient checkpointing is essential for 3D brain MRI analysis with deep learning. Brain MRI volumes are inherently large (often 256³ voxels or more), and 3D CNNs require substantial GPU memory. This technique enables processing of clinical brain imaging volumes that would otherwise cause out-of-memory errors.
 
-### Key Benefits for Medical Imaging
+### Key Benefits for Brain MRI Analysis
 
 | Benefit | Impact | Example |
 |---------|--------|---------|
-| Larger Volumes | 2-4× increase | 128³ → 256³ brain MRI |
+| Larger Brain Volumes | 2-4× increase | 128³ → 256³ brain MRI |
 | Larger Batch Sizes | 3-5× increase | Batch 1 → Batch 4 |
 | Memory Savings | 40-80% reduction | 16GB → 6GB peak usage |
 | Clinical Resolution | Process full scans | Whole-brain parcellation |
 
-## Medical Imaging Challenges
+## Brain MRI Challenges
 
-### Volume Sizes in Clinical Practice
+### Brain Volume Sizes in Clinical Practice
 
-| Modality | Typical Size | Voxel Count | Memory (FP32) |
+| Brain MRI Type | Typical Size | Voxel Count | Memory (FP32) |
 |----------|-------------|-------------|---------------|
-| Brain MRI T1 | 256×256×256 | 16.7M | 64 MB |
-| Brain MRI DTI | 128×128×60×64 | 31.5M | 120 MB |
-| Cardiac CT | 512×512×64 | 16.7M | 64 MB |
-| Chest CT | 512×512×400 | 104.8M | 400 MB |
-| Whole-body PET/CT | 400×400×1000 | 160M | 600 MB |
+| T1-weighted | 256×256×256 | 16.7M | 64 MB |
+| T2-weighted | 256×256×256 | 16.7M | 64 MB |
+| FLAIR | 256×256×256 | 16.7M | 64 MB |
+| DTI | 128×128×60×64 | 31.5M | 120 MB |
+| High-res T1 | 512×512×512 | 134M | 512 MB |
 
 ### Memory Explosion in 3D Networks
 
