@@ -429,11 +429,11 @@ x3 = layer3(x2)  # Not stored
             </div>
 
             <div class="highlight-box">
-                <h3>3. Brain MRI Architecture Strategies</h3>
+                <h3>3. Architecture-Specific Checkpoint Strategies</h3>
                 <ul>
-                    <li>3D U-Net: Encoder-decoder optimization for brain segmentation</li>
-                    <li>V-Net: Skip connection handling for brain parcellation</li>
-                    <li>Brain CNNs: Layer-wise checkpointing for tumor detection</li>
+                    <li>3D U-Net: Checkpoint encoder blocks to save memory</li>
+                    <li>V-Net: Handle residual connections when checkpointing</li>
+                    <li>Dense networks: Balance skip connections with memory savings</li>
                 </ul>
             </div>
         </div>
