@@ -735,7 +735,7 @@ For each layer i and checkpoint count k:
                 </div>
             </div>
 
-            <h3>Optimization Results (3D U-Net for brain MRI)</h3>
+            <h3>Optimization Results (16-layer 3D U-Net for brain MRI)</h3>
             
             <table>
                 <thead>
@@ -748,10 +748,16 @@ For each layer i and checkpoint count k:
                 </thead>
                 <tbody>
                     <tr>
-                        <td>30% (600 MB)</td>
-                        <td>[0, 3, 6, 9, 12, 15]</td>
-                        <td>+62%</td>
-                        <td>1.13</td>
+                        <td>100% (2000 MB)</td>
+                        <td>All layers [standard]</td>
+                        <td>Baseline</td>
+                        <td>1.00</td>
+                    </tr>
+                    <tr>
+                        <td>70% (1400 MB)</td>
+                        <td>[5, 10]</td>
+                        <td>+18%</td>
+                        <td>1.67</td>
                     </tr>
                     <tr>
                         <td>50% (1000 MB)</td>
@@ -760,10 +766,10 @@ For each layer i and checkpoint count k:
                         <td>1.32</td>
                     </tr>
                     <tr>
-                        <td>70% (1400 MB)</td>
-                        <td>[5, 10]</td>
-                        <td>+18%</td>
-                        <td>1.67</td>
+                        <td>30% (600 MB)</td>
+                        <td>[0, 3, 6, 9, 12, 15]</td>
+                        <td>+62%</td>
+                        <td>1.13</td>
                     </tr>
                 </tbody>
             </table>
